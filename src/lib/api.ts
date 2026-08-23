@@ -74,12 +74,15 @@ export async function apiPublish(payload: {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  if (!res.ok) throw new Error("Publish failed");
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error ?? "Publish failed");
+  }
   return res.json() as Promise<PublishedSite & { siteId: string }>;
 }
 
-export async function apiSiteStatus(siteId: string, tick: number) {
-  const res = await fetch(`/api/sites/${siteId}/status?tick=${tick}`);
+export async function apiSiteStatus(siteId: string) {
+  const res = await fetch(`/api/sites/${siteId}/status`);
   if (!res.ok) throw new Error("Status failed");
   return res.json() as Promise<{
     hosting: PublishedSite["hostingStatus"];
