@@ -6,14 +6,22 @@ import {
   MOCK_PAGES,
   mockSiteFromPrompt,
 } from "./mock";
+import { shouldReplaceBrand } from "../../shared/brandPrompt";
 
 const MODEL_ID = "google/gemini-2.5-flash-lite";
+
+const hexColorSchema = z.string().transform((val) => {
+  const trimmed = val.trim();
+  if (/^#[0-9a-fA-F]{6}$/.test(trimmed)) return trimmed;
+  if (/^[0-9a-fA-F]{6}$/.test(trimmed)) return `#${trimmed}`;
+  return "#2563eb";
+});
 
 const brandKitSchema = z.object({
   name: z.string().min(1).max(80),
   tagline: z.string().min(1).max(160),
-  primaryColor: z.string().regex(/^#[0-9a-fA-F]{6}$/),
-  accentColor: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+  primaryColor: hexColorSchema,
+  accentColor: hexColorSchema,
   fontFamily: z.string().min(1).max(120),
 });
 
@@ -22,7 +30,13 @@ const pageSchema = z.object({
     .string()
     .min(1)
     .max(40)
-    .regex(/^[a-z0-9-]+$/),
+    .transform((val) =>
+      val
+        .toLowerCase()
+        .replace(/[^a-z0-9-]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 40) || "home",
+    ),
   title: z.string().min(1).max(80),
   bodyHtml: z.string().min(1).max(12000),
 });
@@ -52,41 +66,53 @@ function hasGatewayAuth(): boolean {
   return Boolean(process.env.AI_GATEWAY_API_KEY ?? process.env.VERCEL_OIDC_TOKEN);
 }
 
-function buildSystemPrompt(hasExistingSite: boolean): string {
-  const mode = hasExistingSite
-    ? "Update the existing brand site draft based on the user's latest prompt. Preserve slugs unless the user asks to add or remove pages."
-    : "Create a new brand website draft from the user's prompt.";
+function summarizeDraftForLlm(draft?: GenerateSiteInput["draft"]) {
+  if (!draft?.pages?.length) return undefined;
+  return {
+    brandKit: draft.brandKit,
+    pages: draft.pages.map((page) => ({
+      slug: page.slug,
+      title: page.title,
+      bodyPreview: page.bodyHtml.replace(/\s+/g, " ").slice(0, 400),
+    })),
+  };
+}
 
-  return `${mode}
+function buildSystemPrompt(mode: "create" | "update" | "replace"): string {
+  const modeLine =
+    mode === "create"
+      ? "Create a new brand website draft from the user's prompt."
+      : mode === "replace"
+        ? "The user wants a NEW brand/site. Replace the draft entirely with content for the business described in their prompt. Do not keep the previous brand name, copy, or theme unless the user explicitly asks to."
+        : "Update the existing brand site draft based on the user's latest prompt. Preserve slugs unless the user asks to add or remove pages.";
+
+  return `${modeLine}
 
 You generate content for prompt2brand, a prompt-to-brand website builder.
 
 Rules:
 - Return JSON matching the schema only.
-- brandKit: concise brand name, tagline, two hex colors, a web-safe font stack.
+- brandKit: concise brand name, tagline, two hex colors (#RRGGBB), a web-safe font stack.
 - pages: 1 to 5 self-contained HTML page bodies (NOT full documents). Always include slug "home".
 - bodyHtml: semantic HTML only (<header>, <main>, <section>, <h1>-<h3>, <p>, <a role="button">). No <html>, <head>, <body>, <script>, or external CSS.
-- Keep copy specific to the user's business idea; avoid generic lorem ipsum.
+- Keep copy specific to the user's business idea; avoid generic lorem ipsum and unrelated sample brands.
 - summary: exactly two short factual lines (not chatty). Line 2 may reference the latest cue briefly.
 - Slugs: lowercase letters, numbers, hyphens only.`;
 }
 
-function buildUserPrompt(input: GenerateSiteInput, hasExistingSite: boolean): string {
-  if (!hasExistingSite) {
+function buildUserPrompt(
+  input: GenerateSiteInput,
+  mode: "create" | "update" | "replace",
+): string {
+  if (mode === "create") {
     return `User prompt:\n${input.prompt}`;
   }
 
+  const summary = summarizeDraftForLlm(input.draft);
   return `User prompt:\n${input.prompt}
 
-Current draft JSON:
-${JSON.stringify(
-  {
-    brandKit: input.draft?.brandKit,
-    pages: input.draft?.pages,
-  },
-  null,
-  2,
-)}`;
+Current draft summary (for context only${mode === "replace" ? " — replace this brand entirely" : ""}):
+${JSON.stringify(summary, null, 2)}`;
 }
 
 function mockFallback(prompt: string, hasExistingSite: boolean): GenerateSiteResult {
@@ -107,8 +133,15 @@ function mockFallback(prompt: string, hasExistingSite: boolean): GenerateSiteRes
 
 export async function generateSite(input: GenerateSiteInput): Promise<GenerateSiteResult> {
   const hasExistingSite = Boolean(input.draft?.pages?.length);
+  const replaceBrand = hasExistingSite && shouldReplaceBrand(input.prompt);
+  const mode: "create" | "update" | "replace" = !hasExistingSite
+    ? "create"
+    : replaceBrand
+      ? "replace"
+      : "update";
 
   if (!hasGatewayAuth()) {
+    console.warn("generateSite: no AI gateway auth, using mock");
     return mockFallback(input.prompt, hasExistingSite);
   }
 
@@ -116,8 +149,8 @@ export async function generateSite(input: GenerateSiteInput): Promise<GenerateSi
     const { object } = await generateObject({
       model: MODEL_ID,
       schema: generateSiteSchema,
-      system: buildSystemPrompt(hasExistingSite),
-      prompt: buildUserPrompt(input, hasExistingSite),
+      system: buildSystemPrompt(mode),
+      prompt: buildUserPrompt(input, mode),
       temperature: 0.7,
     });
 
@@ -139,7 +172,7 @@ export async function generateSite(input: GenerateSiteInput): Promise<GenerateSi
       source: "llm",
     };
   } catch (error) {
-    console.error("generateSite failed", error);
+    console.error("generateSite failed, using mock fallback", error);
     return mockFallback(input.prompt, hasExistingSite);
   }
 }

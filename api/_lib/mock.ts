@@ -1,4 +1,5 @@
 import type { BrandKit, DomainSuggestion, PageDraft } from "./types";
+import { extractBrandName } from "../../shared/brandPrompt";
 
 export const MOCK_BRAND: BrandKit = {
   name: "PawFuel",
@@ -69,19 +70,29 @@ export function buildSummary(intent: "site" | "domain", prompt: string): [string
   return ["Updated site from your prompt.", `Latest cue: ${prompt.slice(0, 60)}`];
 }
 
+function taglineForBrand(name: string): string {
+  const lower = name.toLowerCase();
+  if (lower.includes("electric")) return "Licensed electrical services you can trust.";
+  if (lower.includes("vet") || lower.includes("pet")) return "Care for the pets who matter most.";
+  return `Professional services from ${name}.`;
+}
+
 export function mockSiteFromPrompt(prompt: string): { brandKit: BrandKit; pages: PageDraft[] } {
-  const nameMatch = prompt.match(/(?:called|named|say)\s+([A-Za-z0-9]+)/i);
-  const name = nameMatch?.[1] ?? MOCK_BRAND.name;
+  const name = extractBrandName(prompt) ?? MOCK_BRAND.name;
+  const tagline = name === MOCK_BRAND.name ? MOCK_BRAND.tagline : taglineForBrand(name);
 
   return {
-    brandKit: { ...MOCK_BRAND, name, tagline: MOCK_BRAND.tagline },
+    brandKit: { ...MOCK_BRAND, name, tagline },
     pages: MOCK_PAGES.map((page, index) =>
       index === 0
         ? {
             ...page,
-            bodyHtml: page.bodyHtml.replace(/PawFuel/g, name),
+            bodyHtml: page.bodyHtml.replace(/PawFuel/g, name).replace(MOCK_BRAND.tagline, tagline),
           }
-        : page,
+        : {
+            ...page,
+            bodyHtml: page.bodyHtml.replace(/PawFuel/g, name),
+          },
     ),
   };
 }

@@ -1,4 +1,5 @@
 import type { BrandConflict, BrandKit, DomainSuggestion, PageDraft, PublishedSite } from "./types";
+import { extractBrandName } from "../../shared/brandPrompt";
 
 const MOCK_CONFLICTS: Record<string, BrandConflict[]> = {
   "pawfuel.com": [
@@ -42,6 +43,7 @@ export async function apiGenerate(
     brandKit: BrandKit;
     pages: PageDraft[];
     summary: [string, string];
+    source?: "llm" | "mock";
   }>;
 }
 
@@ -99,15 +101,24 @@ function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function taglineForBrand(name: string): string {
+  const lower = name.toLowerCase();
+  if (lower.includes("electric")) return "Licensed electrical services you can trust.";
+  if (lower.includes("vet") || lower.includes("pet")) return "Care for the pets who matter most.";
+  return `Professional services from ${name}.`;
+}
+
 export async function mockGenerate(prompt: string, hasSite: boolean) {
   await delay(600);
+  const name = extractBrandName(prompt) ?? "PawFuel";
+  const tagline =
+    name === "PawFuel" ? "Clean energy for active dogs" : taglineForBrand(name);
+
   if (hasSite) {
-    const nameMatch = prompt.match(/(?:called|named|say)\s+([A-Za-z0-9]+)/i);
-    const name = nameMatch?.[1] ?? "PawFuel";
     return {
       brandKit: {
         name,
-        tagline: "Clean energy for active dogs",
+        tagline,
         primaryColor: "#2563eb",
         accentColor: "#f59e0b",
         fontFamily: "system-ui, sans-serif",
@@ -116,10 +127,11 @@ export async function mockGenerate(prompt: string, hasSite: boolean) {
         {
           slug: "home",
           title: "Home",
-          bodyHtml: `<header><h1>${name}</h1><p>Clean energy for active dogs</p></header><main><section><h2>Fuel their adventure</h2><p>Human-grade ingredients. Vet-approved formulas.</p></section></main>`,
+          bodyHtml: `<header><h1>${name}</h1><p>${tagline}</p></header><main><section><h2>Welcome</h2><p>${tagline}</p></section></main>`,
         },
       ],
       summary: ["Updated site from your prompt.", `Latest cue: ${prompt.slice(0, 60)}`] as [string, string],
+      source: "mock" as const,
     };
   }
   return {
@@ -139,6 +151,7 @@ export async function mockGenerate(prompt: string, hasSite: boolean) {
       },
     ],
     summary: ["Built your brand preview.", "Open domain suggestions when ready."] as [string, string],
+    source: "mock" as const,
   };
 }
 
@@ -171,8 +184,13 @@ export async function safeGenerate(
   draft: { pages: PageDraft[]; brandKit?: BrandKit },
 ) {
   try {
-    return await apiGenerate(prompt, draft);
+    const result = await apiGenerate(prompt, draft);
+    if ("source" in result && result.source === "mock") {
+      console.warn("Generate used server mock fallback — check AI gateway / logs");
+    }
+    return result;
   } catch {
+    console.warn("Generate API failed, using client mock fallback");
     return mockGenerate(prompt, draft.pages.length > 0);
   }
 }

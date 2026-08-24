@@ -66,6 +66,7 @@ export default function App() {
             mergeDraft(current, { summary: result.summary, status: "ready" }),
           );
         } else {
+          const rebrand = draft.brandKit.name !== result.brandKit.name;
           setDraft((current) =>
             mergeDraft(current, {
               prompt,
@@ -75,9 +76,13 @@ export default function App() {
               status: "ready",
             }),
           );
-          if (domains.length === 0) {
+          if (domains.length === 0 || rebrand) {
             const domainResult = await safeDomainSuggest(prompt);
             setDomains(domainResult.domains);
+            if (rebrand) {
+              setSelectedDomain(null);
+              setConfirmed(false);
+            }
           }
           setDomainCardOpen(true);
         }
