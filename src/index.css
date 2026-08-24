@@ -2,7 +2,7 @@
 
 :root {
   color: #18181b;
-  background: #f4f4f5;
+  background: #fafafa;
   font-family:
     Inter,
     system-ui,
@@ -29,4 +29,82 @@ body {
 
 #root {
   min-height: 100vh;
+}
+
+.preview-canvas {
+  background-color: #fafafa;
+  background-image:
+    radial-gradient(
+      ellipse 82% 72% at 50% 48%,
+      rgb(161 161 170 / 0.55) 0%,
+      rgb(212 212 216 / 0.42) 28%,
+      rgb(228 228 231 / 0.18) 52%,
+      rgb(250 250 250 / 0) 82%
+    ),
+    radial-gradient(circle, rgb(165 180 252 / 0.95) 0.35px, transparent 0.35px),
+    radial-gradient(circle, rgb(129 140 248 / 0.4) 0.85px, transparent 0.85px);
+  background-size: 100% 100%, 22px 22px, 22px 22px;
+  background-position: center;
+}
+
+@media (min-width: 768px) {
+  .preview-canvas {
+    background-size: 100% 100%, 24px 24px, 24px 24px;
+  }
+}
+
+
+.app-shell {
+  margin-inline: auto;
+  width: 100%;
+  max-width: 64rem;
+  padding-inline: 1rem;
+}
+
+.shell-divider {
+  height: 1px;
+  background: linear-gradient(
+    to right,
+    transparent 0%,
+    rgb(228 228 231 / 0.95) 2.5%,
+    rgb(228 228 231 / 0.95) 97.5%,
+    transparent 100%
+  );
+}
+
+
+.app-header {
+  font-family:
+    "Fragment Mono",
+    "Roboto Mono",
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace;
+  letter-spacing: -0.01em;
+}
+
+.app-header-title {
+  font-size: 1.0625rem;
+  font-weight: 700;
+  line-height: 1.15;
+  color: #09090b;
+}
+
+.app-header-tagline {
+  margin-top: 0.15rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.2;
+  color: #52525b;
+  letter-spacing: 0.04em;
+}
+
+.app-header-brand {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.15;
+  color: #27272a;
 }

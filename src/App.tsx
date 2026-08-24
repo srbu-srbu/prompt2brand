@@ -18,12 +18,38 @@ import {
 } from "@/lib/draft";
 import type { AppPhase, DomainSuggestion, Draft, PublishedSite } from "@/lib/types";
 
+const domainCardProps = (
+  domains: DomainSuggestion[],
+  setDomains: (domains: DomainSuggestion[]) => void,
+  selectedDomain: string | null,
+  setSelectedDomain: (fqdn: string | null) => void,
+  confirmed: boolean,
+  setConfirmed: (confirmed: boolean) => void,
+  handleLaunch: () => void,
+  launching: boolean,
+  brandName: string,
+  collapsed: boolean,
+  onToggleCollapse: () => void,
+) => ({
+  open: true as const,
+  collapsed,
+  onToggleCollapse,
+  domains,
+  onDomainsChange: setDomains,
+  selectedDomain,
+  onSelectDomain: setSelectedDomain,
+  confirmed,
+  onConfirmChange: setConfirmed,
+  onLaunch: handleLaunch,
+  launching,
+  brandName,
+});
+
 export default function App() {
   const [phase, setPhase] = useState<AppPhase>("build");
   const [draft, setDraft] = useState<Draft>(() => loadDraft());
   const [promptInput, setPromptInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [domainCardOpen, setDomainCardOpen] = useState(false);
   const [domainCardCollapsed, setDomainCardCollapsed] = useState(false);
   const [domains, setDomains] = useState<DomainSuggestion[]>([]);
   const [selectedDomain, setSelectedDomain] = useState<string | null>(null);
@@ -36,10 +62,12 @@ export default function App() {
   }, [draft]);
 
   useEffect(() => {
-    if (hasSite(draft)) {
-      setDomainCardOpen(true);
-    }
-  }, [draft.pages.length, draft.status]);
+    if (!hasSite(draft)) return;
+    const keyword = draft.prompt || draft.brandKit.name || "brand";
+    void safeDomainSuggest(keyword).then((result) => {
+      setDomains((current) => (current.length > 0 ? current : result.domains));
+    });
+  }, [draft.pages.length, draft.prompt, draft.brandKit.name]);
 
   async function handlePromptSubmit() {
     const prompt = promptInput.trim();
@@ -54,7 +82,6 @@ export default function App() {
       if (intent === "domain" && hasSite(draft)) {
         const result = await safeDomainSuggest(prompt);
         setDomains(result.domains);
-        setDomainCardOpen(true);
         setDraft((current) =>
           mergeDraft(current, { summary: result.summary, status: "ready" }),
         );
@@ -84,7 +111,6 @@ export default function App() {
               setConfirmed(false);
             }
           }
-          setDomainCardOpen(true);
         }
       }
     } finally {
@@ -111,49 +137,70 @@ export default function App() {
     return <DoneScreen published={published} />;
   }
 
+  const cardProps = domainCardProps(
+    domains,
+    setDomains,
+    selectedDomain,
+    setSelectedDomain,
+    confirmed,
+    setConfirmed,
+    handleLaunch,
+    launching,
+    draft.brandKit.name,
+    domainCardCollapsed,
+    () => setDomainCardCollapsed((v) => !v),
+  );
+
   return (
-    <div className="flex min-h-screen flex-col bg-zinc-100">
-      <header className="border-b border-zinc-200 bg-white px-4 py-4">
-        <div className="mx-auto flex max-w-5xl items-center justify-between">
-          <div>
-            <p className="text-lg font-semibold text-zinc-900">prompt2brand</p>
-            <p className="text-sm text-zinc-500">Prompt your brand. Pick a domain. Launch.</p>
+    <div className="flex h-dvh flex-col overflow-hidden bg-zinc-50">
+      <div className="relative flex min-h-0 flex-1 flex-col">
+        <div className="preview-canvas pointer-events-none absolute inset-0" aria-hidden="true" />
+        <header className="app-header relative shrink-0 pt-3">
+          <div className="app-shell flex items-center justify-between pb-3">
+            <div>
+              <p className="app-header-title">prompt2brand</p>
+              <p className="app-header-tagline">Prompt your brand. Pick a domain. Launch.</p>
+            </div>
+            {hasSite(draft) ? (
+              <p className="app-header-brand">{draft.brandKit.name}</p>
+            ) : null}
           </div>
-          {hasSite(draft) ? (
-            <p className="text-sm font-medium text-zinc-700">{draft.brandKit.name}</p>
-          ) : null}
-        </div>
-      </header>
+          <div className="app-shell" aria-hidden="true">
+            <div className="shell-divider" />
+          </div>
+        </header>
 
-      <main className="relative mx-auto flex w-full max-w-5xl flex-1 flex-col px-4 py-6">
-        <div className="relative flex-1">
-          <BrandPreview brandKit={draft.brandKit} pages={draft.pages} />
-          <DomainCard
-            open={domainCardOpen && hasSite(draft)}
-            collapsed={domainCardCollapsed}
-            onToggleCollapse={() => setDomainCardCollapsed((v) => !v)}
-            domains={domains}
-            onDomainsChange={setDomains}
-            selectedDomain={selectedDomain}
-            onSelectDomain={setSelectedDomain}
-            confirmed={confirmed}
-            onConfirmChange={setConfirmed}
-            onLaunch={handleLaunch}
-            launching={launching}
-            brandName={draft.brandKit.name}
-          />
-        </div>
-      </main>
-
-      <div className="sticky bottom-0 space-y-3 pb-2 pt-2">
-        <SummaryLines lines={draft.summary} />
-        <PromptBar
-          value={promptInput}
-          onChange={setPromptInput}
-          onSubmit={handlePromptSubmit}
-          loading={loading}
-        />
+        <main className="relative flex min-h-0 flex-1 flex-col">
+          <div className="app-shell flex h-full min-h-0 flex-col py-3">
+            <BrandPreview brandKit={draft.brandKit} pages={draft.pages} />
+          </div>
+        </main>
       </div>
+
+      <footer className="relative z-20 shrink-0 bg-zinc-50/90 pb-3 backdrop-blur-sm">
+        <div className="app-shell pt-3">
+          <div className="shell-divider mb-3" aria-hidden="true" />
+          <div className="relative">
+            <SummaryLines
+              lines={draft.summary}
+              className={hasSite(draft) ? "max-w-[calc(100%-11.5rem)] pr-2" : undefined}
+            />
+            <div className="relative mt-2">
+              {hasSite(draft) ? (
+                <div className="absolute bottom-full right-0 z-40 mb-2 w-full max-w-2xl">
+                  <DomainCard {...cardProps} />
+                </div>
+              ) : null}
+              <PromptBar
+                value={promptInput}
+                onChange={setPromptInput}
+                onSubmit={handlePromptSubmit}
+                loading={loading}
+              />
+            </div>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

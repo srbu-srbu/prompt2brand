@@ -35,7 +35,7 @@ export function clearDraft() {
 }
 
 export function hasSite(draft: Draft) {
-  return draft.pages.length > 0 && draft.status === "ready";
+  return draft.pages.length > 0;
 }
 
 export function mergeDraft(
