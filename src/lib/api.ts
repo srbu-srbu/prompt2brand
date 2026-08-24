@@ -58,11 +58,11 @@ export async function apiDomainSuggest(prompt: string) {
   }>;
 }
 
-export async function apiDomainSuggestMore(exclude: string[]) {
+export async function apiDomainSuggestMore(exclude: string[], keyword?: string) {
   const res = await fetch("/api/domains/suggest/more", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ exclude }),
+    body: JSON.stringify({ exclude, keyword }),
   });
   if (!res.ok) throw new Error("More suggestions failed");
   return res.json() as Promise<{ domains: DomainSuggestion[] }>;

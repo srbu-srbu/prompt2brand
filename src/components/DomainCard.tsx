@@ -50,7 +50,10 @@ export function DomainCard({
 
   async function loadMore() {
     try {
-      const data = await apiDomainSuggestMore(domains.map((d) => d.fqdn));
+      const data = await apiDomainSuggestMore(
+        domains.map((d) => d.fqdn),
+        brandName,
+      );
       onDomainsChange([...domains, ...data.domains]);
     } catch {
       onDomainsChange([

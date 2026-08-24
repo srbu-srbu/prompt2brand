@@ -26,8 +26,10 @@ export async function savePublishedSite(input: {
   domainFqdn: string;
   brandKit: BrandKit;
   pages: PageDraft[];
+  domainStatus?: "pending" | "live" | "failed";
 }): Promise<void> {
   const sql = getSql();
+  const domainStatus = input.domainStatus ?? "pending";
 
   await sql`
     INSERT INTO sites (site_id, hosted_url, domain_fqdn, hosting_status, domain_status)
@@ -36,7 +38,7 @@ export async function savePublishedSite(input: {
       ${input.hostedUrl},
       ${input.domainFqdn},
       'live',
-      'pending'
+      ${domainStatus}
     )
   `;
 
@@ -47,6 +49,18 @@ export async function savePublishedSite(input: {
       VALUES (${input.siteId}, ${page.slug}, ${page.title}, ${html})
     `;
   }
+}
+
+export async function updateSiteDomainStatus(
+  siteId: string,
+  domainStatus: "pending" | "live" | "failed",
+): Promise<void> {
+  const sql = getSql();
+  await sql`
+    UPDATE sites
+    SET domain_status = ${domainStatus}
+    WHERE site_id = ${siteId}
+  `;
 }
 
 export async function getSiteById(siteId: string): Promise<SiteRow | null> {
