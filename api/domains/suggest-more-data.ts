@@ -1,4 +1,4 @@
-import type { DomainSuggestion } from "../../shared/types";
+import type { DomainSuggestion } from "../_lib/types";
 
 export const EXTRA_DOMAINS: DomainSuggestion[] = [
   { fqdn: "pawfuel.io", priceLabel: "Available" },

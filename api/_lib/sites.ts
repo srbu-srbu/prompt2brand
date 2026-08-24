@@ -1,4 +1,4 @@
-import type { BrandKit, PageDraft } from "../../shared/types";
+import type { BrandKit, PageDraft } from "./types";
 import { getSql } from "./db";
 import { wrapPage } from "./wrapPage";
 
@@ -67,33 +67,6 @@ export async function getSiteById(siteId: string): Promise<SiteRow | null> {
 
   const row = rows[0] as SiteRow | undefined;
   return row ?? null;
-}
-
-export async function markHostingLive(siteId: string, vercelDeploymentId?: string): Promise<void> {
-  const sql = getSql();
-  if (vercelDeploymentId) {
-    await sql`
-      UPDATE sites
-      SET hosting_status = 'live', vercel_deployment_id = ${vercelDeploymentId}
-      WHERE site_id = ${siteId}
-    `;
-    return;
-  }
-
-  await sql`
-    UPDATE sites
-    SET hosting_status = 'live'
-    WHERE site_id = ${siteId}
-  `;
-}
-
-export async function markDomainLive(siteId: string): Promise<void> {
-  const sql = getSql();
-  await sql`
-    UPDATE sites
-    SET domain_status = 'live'
-    WHERE site_id = ${siteId}
-  `;
 }
 
 export async function getPageHtml(siteId: string, slug: string): Promise<string | null> {

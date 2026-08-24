@@ -1,7 +1,11 @@
 import { neon } from "@neondatabase/serverless";
 
 export function getDatabaseUrl(): string {
-  const url = process.env.POSTGRES_URL ?? process.env.DATABASE_URL;
+  const url =
+    process.env.POSTGRES_URL ??
+    process.env.DATABASE_URL ??
+    process.env.POSTGRES_URL_NON_POOLING;
+
   if (!url) {
     throw new Error("POSTGRES_URL is not configured");
   }

@@ -1,4 +1,4 @@
-import type { BrandKit } from "../../shared/types";
+import type { BrandKit } from "./types";
 
 function escapeHtml(value: string): string {
   return value

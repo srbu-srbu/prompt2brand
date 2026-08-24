@@ -1,4 +1,4 @@
-import type { BrandKit, DomainSuggestion, PageDraft } from "../../shared/types";
+import type { BrandKit, DomainSuggestion, PageDraft } from "./types";
 
 export const MOCK_BRAND: BrandKit = {
   name: "PawFuel",

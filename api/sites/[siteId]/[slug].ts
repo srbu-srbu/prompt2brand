@@ -1,15 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPageHtml, getSiteById } from "../../_lib/sites";
 
-function pathToSlug(path: string | string[] | undefined): string {
-  if (!path) return "home";
-  if (Array.isArray(path)) {
-    const joined = path.filter(Boolean).join("/");
-    return joined || "home";
-  }
-  return path.replace(/^\//, "") || "home";
-}
-
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "GET") {
     res.status(405).json({ error: "Method not allowed" });
@@ -17,7 +8,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const siteId = typeof req.query.siteId === "string" ? req.query.siteId : "";
-  const slug = pathToSlug(req.query.path);
+  const slug = typeof req.query.slug === "string" ? req.query.slug : "home";
 
   if (!siteId) {
     res.status(400).json({ error: "siteId is required" });

@@ -82,7 +82,7 @@ export async function apiPublish(payload: {
 }
 
 export async function apiSiteStatus(siteId: string) {
-  const res = await fetch(`/api/sites/${siteId}/status`);
+  const res = await fetch(`/api/sites/status/${siteId}`);
   if (!res.ok) throw new Error("Status failed");
   return res.json() as Promise<{
     hosting: PublishedSite["hostingStatus"];

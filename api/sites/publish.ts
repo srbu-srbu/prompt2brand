@@ -1,10 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import type { BrandKit, PageDraft } from "../../shared/types";
-import {
-  createSiteId,
-  hostedUrlForSite,
-  savePublishedSite,
-} from "../_lib/sites";
+import type { BrandKit, PageDraft } from "../_lib/types";
+import { createSiteId, hostedUrlForSite, savePublishedSite } from "../_lib/sites";
 
 type PublishBody = {
   draft?: {
