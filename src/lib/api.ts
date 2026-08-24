@@ -22,7 +22,10 @@ export function conflictsForDomain(fqdn: string): BrandConflict[] {
   );
 }
 
-export async function apiGenerate(prompt: string, draft: { pages: PageDraft[] }) {
+export async function apiGenerate(
+  prompt: string,
+  draft: { pages: PageDraft[]; brandKit?: BrandKit },
+) {
   const res = await fetch("/api/generate", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -163,7 +166,10 @@ export async function mockPublish(domainFqdn: string) {
   };
 }
 
-export async function safeGenerate(prompt: string, draft: { pages: PageDraft[] }) {
+export async function safeGenerate(
+  prompt: string,
+  draft: { pages: PageDraft[]; brandKit?: BrandKit },
+) {
   try {
     return await apiGenerate(prompt, draft);
   } catch {
