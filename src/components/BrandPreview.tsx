@@ -1,3 +1,5 @@
+import { useEffect, useMemo, useState } from "react";
+import { buildPreviewSrcDoc } from "@/lib/previewFrame";
 import type { BrandKit, PageDraft } from "@/lib/types";
 
 type BrandPreviewProps = {
@@ -6,21 +8,29 @@ type BrandPreviewProps = {
   activeSlug?: string;
 };
 
-function previewDocument(bodyHtml: string): string {
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <style>
-    html, body { margin: 0; min-height: 100%; }
-  </style>
-</head>
-<body>${bodyHtml}</body>
-</html>`;
-}
+export function BrandPreview({ pages, activeSlug: initialSlug = "home" }: BrandPreviewProps) {
+  const slugs = useMemo(() => pages.map((page) => page.slug), [pages]);
+  const [activeSlug, setActiveSlug] = useState(initialSlug);
 
-export function BrandPreview({ pages, activeSlug = "home" }: BrandPreviewProps) {
+  useEffect(() => {
+    if (!pages.some((page) => page.slug === activeSlug)) {
+      setActiveSlug(pages[0]?.slug ?? "home");
+    }
+  }, [pages, activeSlug]);
+
+  useEffect(() => {
+    function onMessage(event: MessageEvent) {
+      if (event.data?.type !== "p2b-preview-nav") return;
+      const slug = event.data.slug;
+      if (typeof slug === "string" && pages.some((page) => page.slug === slug)) {
+        setActiveSlug(slug);
+      }
+    }
+
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [pages]);
+
   const page = pages.find((p) => p.slug === activeSlug) ?? pages[0];
 
   if (!page) {
@@ -34,10 +44,11 @@ export function BrandPreview({ pages, activeSlug = "home" }: BrandPreviewProps) 
   return (
     <div className="relative z-0 flex h-full flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
       <iframe
+        key={activeSlug}
         title="Brand preview"
         className="min-h-0 w-full flex-1 border-0 bg-white"
-        sandbox=""
-        srcDoc={previewDocument(page.bodyHtml)}
+        sandbox="allow-scripts"
+        srcDoc={buildPreviewSrcDoc(page.bodyHtml, slugs)}
       />
     </div>
   );
