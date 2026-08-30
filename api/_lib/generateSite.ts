@@ -234,12 +234,20 @@ type GatewayChatResponse = {
   };
 };
 
+function parseModelJson(content: string): unknown {
+  const trimmed = content.trim();
+  const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)```$/i);
+  const jsonText = fenced?.[1]?.trim() ?? trimmed;
+  return JSON.parse(jsonText);
+}
+
 async function callGateway(input: GenerateSiteInput) {
   const token = gatewayAuthToken();
   if (!token) {
     throw new Error("No AI gateway auth configured");
   }
 
+  const schemaHint = JSON.stringify(generateSiteJsonSchema, null, 2);
   const response = await fetch(GATEWAY_URL, {
     method: "POST",
     headers: {
@@ -251,16 +259,12 @@ async function callGateway(input: GenerateSiteInput) {
       temperature: 0.55,
       stream: false,
       messages: [
-        { role: "system", content: buildSystemPrompt() },
+        {
+          role: "system",
+          content: `${buildSystemPrompt()}\n\nRespond with JSON only (no markdown fences) matching this schema:\n${schemaHint}`,
+        },
         { role: "user", content: buildUserPrompt(input) },
       ],
-      response_format: {
-        type: "json_schema",
-        json_schema: {
-          name: "generate_site",
-          schema: generateSiteJsonSchema,
-        },
-      },
     }),
   });
 
@@ -274,7 +278,7 @@ async function callGateway(input: GenerateSiteInput) {
     throw new Error("Gateway returned empty content");
   }
 
-  return generateSiteSchema.parse(JSON.parse(content));
+  return generateSiteSchema.parse(parseModelJson(content));
 }
 
 export async function generateSite(input: GenerateSiteInput): Promise<GenerateSiteResult> {
