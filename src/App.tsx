@@ -108,6 +108,7 @@ export default function App() {
           setDraft((current) =>
             mergeDraft(current, {
               prompt,
+              promptHistory: appendPromptHistory(current.promptHistory, prompt),
               brandKit: result.brandKit,
               pages: result.pages,
               summary: result.summary,

@@ -1,4 +1,4 @@
-import { detectDomainIntent } from "../../shared/siteHelpers";
+import { detectDomainIntent } from "./intent";
 
 export function detectIntent(prompt: string): "site" | "domain" {
   return detectDomainIntent(prompt);

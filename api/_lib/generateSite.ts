@@ -1,7 +1,6 @@
 import { generateObject } from "ai";
 import { z } from "zod";
 import type { BrandKit, PageDraft } from "./types";
-import { buildMockHomePageHtml } from "../../shared/siteHelpers";
 
 const MODEL_ID = "google/gemini-2.5-flash-lite";
 const PROMPT_HISTORY_MAX = 5;
@@ -156,6 +155,10 @@ function mockFallback(input: GenerateSiteInput): GenerateSiteResult {
   };
 }
 
+function placeholderHomeHtml(brandKit: BrandKit): string {
+  return `<style>.p2b{padding:2rem;font-family:system-ui,sans-serif;color:#18181b}.p2b h1{color:${brandKit.primaryColor}}</style><main class="p2b"><h1>${brandKit.name}</h1><p>${brandKit.tagline}</p></main>`;
+}
+
 function ensureHomePage(pages: PageDraft[], brandKit: BrandKit): PageDraft[] {
   if (pages.some((page) => page.slug === "home")) return pages;
 
@@ -163,12 +166,7 @@ function ensureHomePage(pages: PageDraft[], brandKit: BrandKit): PageDraft[] {
     {
       slug: "home",
       title: "Home",
-      bodyHtml: buildMockHomePageHtml(
-        brandKit.name,
-        brandKit.tagline,
-        brandKit.primaryColor,
-        brandKit.accentColor,
-      ),
+      bodyHtml: placeholderHomeHtml(brandKit),
     },
     ...pages,
   ];
