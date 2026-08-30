@@ -14,6 +14,7 @@ type DomainCardProps = {
   onLaunch: () => void;
   launching?: boolean;
   brandName: string;
+  hasWebsite?: boolean;
   published?: (PublishedSite & { siteId: string }) | null;
 };
 
@@ -85,6 +86,7 @@ export function DomainCard({
   onLaunch,
   launching,
   brandName,
+  hasWebsite = false,
   published,
 }: DomainCardProps) {
   const conflicts = selectedDomain ? conflictsForDomain(selectedDomain) : [];
@@ -133,6 +135,11 @@ export function DomainCard({
                     </li>
                   ))}
                 </ul>
+                {domains.length === 0 ? (
+                  <p className="text-sm text-zinc-500">
+                    No suggestions yet. Describe your brand idea in the prompt below.
+                  </p>
+                ) : null}
                 {domains.length > 0 ? (
                   <Button variant="outline" size="sm" className="mt-2 bg-white" onClick={loadMore}>
                     More suggestions
@@ -179,20 +186,22 @@ export function DomainCard({
                   type="checkbox"
                   checked={confirmed}
                   onChange={(e) => onConfirmChange(e.target.checked)}
-                  disabled={!selectedDomain}
+                  disabled={!selectedDomain || !hasWebsite}
                 />
                 I confirm this website and domain
               </label>
               <Button
                 size="lg"
                 className="w-full sm:w-auto"
-                disabled={!selectedDomain || !confirmed || launching}
+                disabled={!selectedDomain || !confirmed || launching || !hasWebsite}
                 onClick={onLaunch}
               >
                 {launching ? "Launching..." : "Launch brand"}
               </Button>
               <p className="mt-1.5 text-xs text-zinc-500">
-                Includes hosted website and domain registration · Sandbox - no charge
+                {hasWebsite
+                  ? "Includes hosted website and domain registration · Sandbox - no charge"
+                  : "Create a website first, then return here to launch."}
               </p>
             </div>
           </>

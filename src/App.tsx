@@ -28,6 +28,7 @@ const domainCardProps = (
   handleLaunch: () => void,
   launching: boolean,
   brandName: string,
+  hasWebsite: boolean,
   published: (PublishedSite & { siteId: string }) | null,
 ) => ({
   domains,
@@ -39,6 +40,7 @@ const domainCardProps = (
   onLaunch: handleLaunch,
   launching,
   brandName,
+  hasWebsite,
   published,
 });
 
@@ -73,7 +75,6 @@ export default function App() {
   async function handlePromptSubmit() {
     const prompt = promptInput.trim();
     if (!prompt || loading) return;
-    if (promptMode === "domain" && !hasSite(draft)) return;
 
     setLoading(true);
     setPromptInput("");
@@ -118,7 +119,7 @@ export default function App() {
   }
 
   async function handleLaunch() {
-    if (!selectedDomain || !confirmed || launching) return;
+    if (!selectedDomain || !confirmed || launching || !hasSite(draft)) return;
     setLaunching(true);
     try {
       const result = await safePublish({
@@ -140,7 +141,7 @@ export default function App() {
   }
 
   const launched = phase === "done" && published;
-  const showDomainCard = Boolean(launched || (promptMode === "domain" && hasSite(draft)));
+  const showDomainCard = Boolean(launched || promptMode === "domain");
 
   const cardProps = domainCardProps(
     domains,
@@ -152,6 +153,7 @@ export default function App() {
     handleLaunch,
     launching,
     draft.brandKit.name,
+    hasSite(draft),
     published,
   );
 
@@ -175,15 +177,17 @@ export default function App() {
         </header>
 
         <main className="relative flex min-h-0 flex-1 flex-col">
-          <div className="app-shell relative flex h-full min-h-0 flex-col pt-3 pb-0">
-            <BrandPreview brandKit={draft.brandKit} pages={draft.pages} />
-            {showDomainCard ? (
-              <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30">
-                <div className="pointer-events-auto mb-2 w-full max-w-2xl">
-                  <DomainCard {...cardProps} />
+          <div className="app-shell flex h-full min-h-0 flex-col pt-3 pb-0">
+            <div className="relative min-h-0 flex-1">
+              <BrandPreview brandKit={draft.brandKit} pages={draft.pages} />
+              {showDomainCard ? (
+                <div className="pointer-events-none absolute bottom-0 left-0 z-30 w-full max-w-2xl">
+                  <div className="pointer-events-auto">
+                    <DomainCard {...cardProps} />
+                  </div>
                 </div>
-              </div>
-            ) : null}
+              ) : null}
+            </div>
           </div>
         </main>
       </div>
@@ -193,7 +197,6 @@ export default function App() {
           <PromptPanel
             mode={promptMode}
             onModeChange={handlePromptModeChange}
-            domainDisabled={!hasSite(draft)}
             disabled={Boolean(launched) || launching}
             summary={<SummaryLines lines={draft.summary} />}
           >

@@ -6,7 +6,6 @@ export type PromptMode = "site" | "domain";
 type PromptPanelTabsProps = {
   mode: PromptMode;
   onModeChange: (mode: PromptMode) => void;
-  domainDisabled?: boolean;
   disabled?: boolean;
 };
 
@@ -18,14 +17,13 @@ const tabs: { id: PromptMode; label: string }[] = [
 export function PromptPanelTabs({
   mode,
   onModeChange,
-  domainDisabled,
   disabled,
 }: PromptPanelTabsProps) {
   return (
     <div className="flex gap-0.5 px-1.5 pt-1.5" role="tablist" aria-label="Prompt mode">
       {tabs.map((tab) => {
         const isActive = mode === tab.id;
-        const isDisabled = disabled || (tab.id === "domain" && domainDisabled);
+        const isDisabled = disabled;
 
         return (
           <button
@@ -54,7 +52,6 @@ export function PromptPanelTabs({
 type PromptPanelProps = {
   mode: PromptMode;
   onModeChange: (mode: PromptMode) => void;
-  domainDisabled?: boolean;
   disabled?: boolean;
   summary: ReactNode;
   children: ReactNode;
@@ -63,19 +60,13 @@ type PromptPanelProps = {
 export function PromptPanel({
   mode,
   onModeChange,
-  domainDisabled,
   disabled,
   summary,
   children,
 }: PromptPanelProps) {
   return (
     <div className="rounded-2xl border border-zinc-300/70 bg-zinc-200/55 shadow-sm">
-      <PromptPanelTabs
-        mode={mode}
-        onModeChange={onModeChange}
-        domainDisabled={domainDisabled}
-        disabled={disabled}
-      />
+      <PromptPanelTabs mode={mode} onModeChange={onModeChange} disabled={disabled} />
 
       <div
         className={cn(
