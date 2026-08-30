@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { buildPreviewSrcDoc } from "@/lib/previewFrame";
+import {
+  buildPreviewSrcDoc,
+  readStoredPreviewSlug,
+  writeStoredPreviewSlug,
+  type PreviewPageMeta,
+} from "@/lib/previewFrame";
 import type { BrandKit, PageDraft } from "@/lib/types";
 
 type BrandPreviewProps = {
@@ -9,20 +14,29 @@ type BrandPreviewProps = {
 };
 
 export function BrandPreview({ pages, activeSlug: initialSlug = "home" }: BrandPreviewProps) {
-  const slugs = useMemo(() => pages.map((page) => page.slug), [pages]);
-  const [activeSlug, setActiveSlug] = useState(initialSlug);
+  const pageMeta = useMemo<PreviewPageMeta[]>(
+    () => pages.map((page) => ({ slug: page.slug, title: page.title })),
+    [pages],
+  );
+  const [activeSlug, setActiveSlug] = useState(() => readStoredPreviewSlug(pageMeta, initialSlug));
 
   useEffect(() => {
     if (!pages.some((page) => page.slug === activeSlug)) {
-      setActiveSlug(pages[0]?.slug ?? "home");
+      const nextSlug = readStoredPreviewSlug(pageMeta, pages[0]?.slug ?? "home");
+      setActiveSlug(nextSlug);
     }
-  }, [pages, activeSlug]);
+  }, [pages, pageMeta, activeSlug]);
+
+  useEffect(() => {
+    writeStoredPreviewSlug(activeSlug);
+  }, [activeSlug]);
 
   useEffect(() => {
     function onMessage(event: MessageEvent) {
       if (event.data?.type !== "p2b-preview-nav") return;
       const slug = event.data.slug;
       if (typeof slug === "string" && pages.some((page) => page.slug === slug)) {
+        writeStoredPreviewSlug(slug);
         setActiveSlug(slug);
       }
     }
@@ -48,7 +62,7 @@ export function BrandPreview({ pages, activeSlug: initialSlug = "home" }: BrandP
         title="Brand preview"
         className="min-h-0 w-full flex-1 border-0 bg-white"
         sandbox="allow-scripts"
-        srcDoc={buildPreviewSrcDoc(page.bodyHtml, slugs)}
+        srcDoc={buildPreviewSrcDoc(page.bodyHtml, pageMeta)}
       />
     </div>
   );
