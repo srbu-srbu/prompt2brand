@@ -1,5 +1,4 @@
 import type { BrandKit, Draft, PageDraft } from "./types";
-import { detectDomainIntent } from "../../shared/siteHelpers";
 
 const STORAGE_KEY = "prompt2brand:draft";
 
@@ -58,9 +57,4 @@ export function mergeDraft(
 
 export function appendPromptHistory(history: string[] | undefined, prompt: string): string[] {
   return [...(history ?? []), prompt].slice(-PROMPT_HISTORY_MAX);
-}
-
-export function detectClientIntent(prompt: string, hasExistingSite: boolean): "site" | "domain" {
-  if (!hasExistingSite) return "site";
-  return detectDomainIntent(prompt);
 }

@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { BrandPreview } from "@/components/BrandPreview";
 import { DomainCard } from "@/components/DomainCard";
-import { DoneScreen } from "@/components/DoneScreen";
 import { PromptBar } from "@/components/PromptBar";
+import { PromptPanel, type PromptMode } from "@/components/PromptPanel";
 import { SummaryLines } from "@/components/SummaryLines";
 import {
   safeDomainSuggest,
@@ -11,7 +11,6 @@ import {
 } from "@/lib/api";
 import {
   appendPromptHistory,
-  detectClientIntent,
   hasSite,
   loadDraft,
   mergeDraft,
@@ -29,12 +28,8 @@ const domainCardProps = (
   handleLaunch: () => void,
   launching: boolean,
   brandName: string,
-  collapsed: boolean,
-  onToggleCollapse: () => void,
+  published: (PublishedSite & { siteId: string }) | null,
 ) => ({
-  open: true as const,
-  collapsed,
-  onToggleCollapse,
   domains,
   onDomainsChange: setDomains,
   selectedDomain,
@@ -44,14 +39,15 @@ const domainCardProps = (
   onLaunch: handleLaunch,
   launching,
   brandName,
+  published,
 });
 
 export default function App() {
   const [phase, setPhase] = useState<AppPhase>("build");
   const [draft, setDraft] = useState<Draft>(() => loadDraft());
   const [promptInput, setPromptInput] = useState("");
+  const [promptMode, setPromptMode] = useState<PromptMode>("site");
   const [loading, setLoading] = useState(false);
-  const [domainCardCollapsed, setDomainCardCollapsed] = useState(true);
   const [domains, setDomains] = useState<DomainSuggestion[]>([]);
   const [selectedDomain, setSelectedDomain] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState(false);
@@ -65,23 +61,26 @@ export default function App() {
   useEffect(() => {
     if (!hasSite(draft)) return;
     const keyword = draft.prompt || draft.brandKit.name || "brand";
-    void safeDomainSuggest(keyword).then((result) => {
+    void safeDomainSuggest(keyword, draft.brandKit.name).then((result) => {
       setDomains((current) => (current.length > 0 ? current : result.domains));
     });
   }, [draft.pages.length, draft.prompt, draft.brandKit.name]);
 
+  function handlePromptModeChange(mode: PromptMode) {
+    setPromptMode(mode);
+  }
+
   async function handlePromptSubmit() {
     const prompt = promptInput.trim();
     if (!prompt || loading) return;
+    if (promptMode === "domain" && !hasSite(draft)) return;
 
     setLoading(true);
     setPromptInput("");
 
     try {
-      const intent = detectClientIntent(prompt, hasSite(draft));
-
-      if (intent === "domain") {
-        const result = await safeDomainSuggest(prompt);
+      if (promptMode === "domain") {
+        const result = await safeDomainSuggest(prompt, draft.brandKit.name);
         setDomains(result.domains);
         setDraft((current) =>
           mergeDraft(current, {
@@ -105,7 +104,7 @@ export default function App() {
           }),
         );
         if (domains.length === 0 || rebrand) {
-          const domainResult = await safeDomainSuggest(prompt);
+          const domainResult = await safeDomainSuggest(prompt, result.brandKit.name);
           setDomains(domainResult.domains);
           if (rebrand) {
             setSelectedDomain(null);
@@ -128,14 +127,20 @@ export default function App() {
       });
       setPublished(result);
       setPhase("done");
+      setPromptMode("domain");
+      setDraft((current) =>
+        mergeDraft(current, {
+          summary: ["Your brand is launching.", `Domain: ${selectedDomain}`],
+          status: "ready",
+        }),
+      );
     } finally {
       setLaunching(false);
     }
   }
 
-  if (phase === "done" && published) {
-    return <DoneScreen published={published} />;
-  }
+  const launched = phase === "done" && published;
+  const showDomainCard = Boolean(launched || (promptMode === "domain" && hasSite(draft)));
 
   const cardProps = domainCardProps(
     domains,
@@ -147,12 +152,11 @@ export default function App() {
     handleLaunch,
     launching,
     draft.brandKit.name,
-    domainCardCollapsed,
-    () => setDomainCardCollapsed((v) => !v),
+    published,
   );
 
   return (
-    <div className="relative flex h-dvh flex-col overflow-hidden bg-zinc-50">
+    <div className="relative flex h-dvh flex-col gap-1 overflow-hidden bg-zinc-50">
       <div className="preview-canvas pointer-events-none absolute inset-0" aria-hidden="true" />
       <div className="relative flex min-h-0 flex-1 flex-col">
         <header className="app-header relative shrink-0 pt-3">
@@ -171,34 +175,38 @@ export default function App() {
         </header>
 
         <main className="relative flex min-h-0 flex-1 flex-col">
-          <div className="app-shell flex h-full min-h-0 flex-col py-3">
+          <div className="app-shell relative flex h-full min-h-0 flex-col pt-3 pb-0">
             <BrandPreview brandKit={draft.brandKit} pages={draft.pages} />
+            {showDomainCard ? (
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30">
+                <div className="pointer-events-auto mb-2 w-full max-w-2xl">
+                  <DomainCard {...cardProps} />
+                </div>
+              </div>
+            ) : null}
           </div>
         </main>
       </div>
 
       <footer className="relative z-20 shrink-0 pb-3">
-        <div className="app-shell pt-3">
-          <div className="shell-divider mb-3" aria-hidden="true" />
-          <div className="relative">
-            <div className="summary-zone">
-              <SummaryLines
-                lines={draft.summary}
-                className="max-w-[calc(100%-11.5rem)] pr-2"
-              />
-            </div>
-            <div className="relative mt-2">
-              <div className="absolute bottom-full right-0 z-40 mb-2 w-full max-w-2xl">
-                <DomainCard {...cardProps} />
-              </div>
-              <PromptBar
-                value={promptInput}
-                onChange={setPromptInput}
-                onSubmit={handlePromptSubmit}
-                loading={loading}
-              />
-            </div>
-          </div>
+        <div className="app-shell">
+          <PromptPanel
+            mode={promptMode}
+            onModeChange={handlePromptModeChange}
+            domainDisabled={!hasSite(draft)}
+            disabled={Boolean(launched) || launching}
+            summary={<SummaryLines lines={draft.summary} />}
+          >
+            <PromptBar
+              value={promptInput}
+              onChange={setPromptInput}
+              onSubmit={handlePromptSubmit}
+              mode={promptMode}
+              loading={loading}
+              disabled={Boolean(launched) || launching}
+              embedded
+            />
+          </PromptPanel>
         </div>
       </footer>
     </div>

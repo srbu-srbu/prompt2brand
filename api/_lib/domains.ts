@@ -1,4 +1,5 @@
 import type { DomainSuggestion } from "./types";
+import { brainstormDomainKeywords } from "./domainBrainstorm";
 import { hasNamecomConfig, searchDomains, type NamecomSearchResult } from "./namecom";
 
 const STOP_WORDS = new Set([
@@ -91,29 +92,45 @@ function dedupeDomains(domains: DomainSuggestion[]): DomainSuggestion[] {
   return output;
 }
 
-export async function suggestDomainsFromPrompt(prompt: string): Promise<{
+export async function suggestDomainsFromPrompt(
+  prompt: string,
+  options?: { brandName?: string },
+): Promise<{
   domains: DomainSuggestion[];
+  summary: [string, string];
   source: "namecom" | "mock";
 }> {
+  const brainstorm = await brainstormDomainKeywords({
+    prompt,
+    brandName: options?.brandName,
+  });
+
   if (!hasNamecomConfig()) {
-    return { domains: [], source: "mock" };
+    return { domains: [], summary: brainstorm.summary, source: "mock" };
   }
 
   try {
-    const keyword = keywordFromPrompt(prompt);
-    const results = await searchDomains({ keyword });
+    const keywords =
+      brainstorm.keywords.length > 0
+        ? brainstorm.keywords
+        : [keywordFromPrompt(prompt)];
+
+    const batches = await Promise.all(keywords.map((keyword) => searchDomains({ keyword })));
     const domains = dedupeDomains(
-      results.map(toSuggestion).filter((domain): domain is DomainSuggestion => domain !== null),
+      batches
+        .flat()
+        .map(toSuggestion)
+        .filter((domain): domain is DomainSuggestion => domain !== null),
     ).slice(0, 8);
 
     if (domains.length === 0) {
-      return { domains: [], source: "mock" };
+      return { domains: [], summary: brainstorm.summary, source: "mock" };
     }
 
-    return { domains, source: "namecom" };
+    return { domains, summary: brainstorm.summary, source: "namecom" };
   } catch (error) {
     console.error("name.com suggest failed", error);
-    return { domains: [], source: "mock" };
+    return { domains: [], summary: brainstorm.summary, source: "mock" };
   }
 }
 

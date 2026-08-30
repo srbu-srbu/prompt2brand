@@ -33,11 +33,11 @@ export async function apiGenerate(
   }>;
 }
 
-export async function apiDomainSuggest(prompt: string) {
+export async function apiDomainSuggest(prompt: string, brandName?: string) {
   const res = await fetch("/api/domains/suggest", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt }),
+    body: JSON.stringify({ prompt, brandName }),
   });
   if (!res.ok) throw new Error("Domain suggest failed");
   return res.json() as Promise<{
@@ -158,9 +158,9 @@ export async function safeGenerate(
   }
 }
 
-export async function safeDomainSuggest(prompt: string) {
+export async function safeDomainSuggest(prompt: string, brandName?: string) {
   try {
-    return await apiDomainSuggest(prompt);
+    return await apiDomainSuggest(prompt, brandName);
   } catch {
     return mockDomainSuggest(prompt);
   }
