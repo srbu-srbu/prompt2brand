@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { generateSite } from "./_lib/generateSite";
 import { detectIntent } from "./_lib/mock";
+import { mockFallback } from "./_lib/generateSite";
 import type { BrandKit, PageDraft } from "./_lib/types";
 
 type GenerateRequestBody = {
@@ -8,6 +8,7 @@ type GenerateRequestBody = {
   draft?: {
     brandKit?: BrandKit;
     pages?: PageDraft[];
+    promptHistory?: string[];
   };
 };
 
@@ -33,16 +34,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  const generated = await generateSite({
-    prompt,
-    draft: body.draft,
-  });
+  try {
+    const { generateSite } = await import("./_lib/generateSite");
+    const generated = await generateSite({
+      prompt,
+      draft: body.draft,
+    });
 
-  res.status(200).json({
-    intent: "site",
-    brandKit: generated.brandKit,
-    pages: generated.pages,
-    summary: generated.summary,
-    source: generated.source,
-  });
+    res.status(200).json({
+      intent: "site",
+      brandKit: generated.brandKit,
+      pages: generated.pages,
+      summary: generated.summary,
+      source: generated.source,
+    });
+  } catch (error) {
+    console.error("generate handler failed", error);
+    const generated = mockFallback({ prompt, draft: body.draft });
+    res.status(200).json({
+      intent: "site",
+      brandKit: generated.brandKit,
+      pages: generated.pages,
+      summary: generated.summary,
+      source: generated.source,
+    });
+  }
 }

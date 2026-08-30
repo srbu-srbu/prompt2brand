@@ -1,8 +1,8 @@
-import { generateObject } from "ai";
 import { z } from "zod";
 import type { BrandKit, PageDraft } from "./types";
 
 const MODEL_ID = "google/gemini-2.5-flash-lite";
+const GATEWAY_URL = "https://ai-gateway.vercel.sh/v1/chat/completions";
 const PROMPT_HISTORY_MAX = 5;
 const PAGE_BODY_MAX = 24000;
 const PAGE_CONTEXT_MAX = 8000;
@@ -41,8 +41,55 @@ const pageSchema = z.object({
 const generateSiteSchema = z.object({
   brandKit: brandKitSchema,
   pages: z.array(pageSchema).min(1).max(5),
-  summary: z.tuple([z.string().max(120), z.string().max(120)]),
+  summary: z.object({
+    line1: z.string().max(120),
+    line2: z.string().max(120),
+  }),
 });
+
+const generateSiteJsonSchema = {
+  type: "object",
+  properties: {
+    brandKit: {
+      type: "object",
+      properties: {
+        name: { type: "string" },
+        tagline: { type: "string" },
+        primaryColor: { type: "string" },
+        accentColor: { type: "string" },
+        fontFamily: { type: "string" },
+      },
+      required: ["name", "tagline", "primaryColor", "accentColor", "fontFamily"],
+      additionalProperties: false,
+    },
+    pages: {
+      type: "array",
+      minItems: 1,
+      maxItems: 5,
+      items: {
+        type: "object",
+        properties: {
+          slug: { type: "string" },
+          title: { type: "string" },
+          bodyHtml: { type: "string" },
+        },
+        required: ["slug", "title", "bodyHtml"],
+        additionalProperties: false,
+      },
+    },
+    summary: {
+      type: "object",
+      properties: {
+        line1: { type: "string" },
+        line2: { type: "string" },
+      },
+      required: ["line1", "line2"],
+      additionalProperties: false,
+    },
+  },
+  required: ["brandKit", "pages", "summary"],
+  additionalProperties: false,
+} as const;
 
 export type GenerateSiteInput = {
   prompt: string;
@@ -60,8 +107,12 @@ export type GenerateSiteResult = {
   source: "llm" | "mock";
 };
 
+function gatewayAuthToken(): string | undefined {
+  return process.env.AI_GATEWAY_API_KEY ?? process.env.VERCEL_OIDC_TOKEN;
+}
+
 function hasGatewayAuth(): boolean {
-  return Boolean(process.env.AI_GATEWAY_API_KEY ?? process.env.VERCEL_OIDC_TOKEN);
+  return Boolean(gatewayAuthToken());
 }
 
 function recentPromptsForLlm(input: GenerateSiteInput): string[] {
@@ -99,7 +150,7 @@ Rules:
 - bodyHtml: a polished, self-styled HTML fragment for one page. Put a <style> block first with layout, typography, and color CSS. Use semantic HTML (header, nav, main, section, footer, article). Inline style attributes are fine.
 - No <html>, <head>, <body>, <script>, external stylesheets, or CDN links.
 - Match the user's business and latest prompt. Never revert to unrelated sample brands unless the user asked for that business.
-- summary: exactly two short factual lines (not chatty). Line 2 may reference the latest cue briefly.
+- summary: exactly two short factual lines (line1 and line2). Line2 may reference the latest cue briefly.
 - Slugs: lowercase letters, numbers, hyphens only.`;
 }
 
@@ -123,7 +174,7 @@ function buildUserPrompt(input: GenerateSiteInput): string {
   return JSON.stringify(payload, null, 2);
 }
 
-function mockFallback(input: GenerateSiteInput): GenerateSiteResult {
+export function mockFallback(input: GenerateSiteInput): GenerateSiteResult {
   const hasExistingSite = Boolean(input.draft?.pages?.length);
 
   if (hasExistingSite && input.draft?.brandKit && input.draft.pages?.length) {
@@ -172,6 +223,60 @@ function ensureHomePage(pages: PageDraft[], brandKit: BrandKit): PageDraft[] {
   ];
 }
 
+type GatewayChatResponse = {
+  choices?: Array<{
+    message?: {
+      content?: string | null;
+    };
+  }>;
+  error?: {
+    message?: string;
+  };
+};
+
+async function callGateway(input: GenerateSiteInput) {
+  const token = gatewayAuthToken();
+  if (!token) {
+    throw new Error("No AI gateway auth configured");
+  }
+
+  const response = await fetch(GATEWAY_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: MODEL_ID,
+      temperature: 0.55,
+      stream: false,
+      messages: [
+        { role: "system", content: buildSystemPrompt() },
+        { role: "user", content: buildUserPrompt(input) },
+      ],
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "generate_site",
+          schema: generateSiteJsonSchema,
+        },
+      },
+    }),
+  });
+
+  const data = (await response.json()) as GatewayChatResponse;
+  if (!response.ok) {
+    throw new Error(data.error?.message ?? `Gateway request failed (${response.status})`);
+  }
+
+  const content = data.choices?.[0]?.message?.content;
+  if (!content) {
+    throw new Error("Gateway returned empty content");
+  }
+
+  return generateSiteSchema.parse(JSON.parse(content));
+}
+
 export async function generateSite(input: GenerateSiteInput): Promise<GenerateSiteResult> {
   if (!hasGatewayAuth()) {
     console.warn("generateSite: no AI gateway auth, using mock");
@@ -179,18 +284,12 @@ export async function generateSite(input: GenerateSiteInput): Promise<GenerateSi
   }
 
   try {
-    const { object } = await generateObject({
-      model: MODEL_ID,
-      schema: generateSiteSchema,
-      system: buildSystemPrompt(),
-      prompt: buildUserPrompt(input),
-      temperature: 0.55,
-    });
+    const object = await callGateway(input);
 
     return {
       brandKit: object.brandKit,
       pages: ensureHomePage(object.pages, object.brandKit),
-      summary: object.summary,
+      summary: [object.summary.line1, object.summary.line2],
       source: "llm",
     };
   } catch (error) {
