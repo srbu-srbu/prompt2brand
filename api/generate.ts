@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { generateSite, mockFallback } from "./_lib/generateSite";
 import { detectIntent } from "./_lib/mock";
-import { mockFallback } from "./_lib/generateSite";
 import type { BrandKit, PageDraft } from "./_lib/types";
 
 type GenerateRequestBody = {
@@ -35,7 +35,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const { generateSite } = await import("./_lib/generateSite");
     const generated = await generateSite({
       prompt,
       draft: body.draft,
