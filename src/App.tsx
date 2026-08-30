@@ -78,9 +78,9 @@ export default function App() {
     setPromptInput("");
 
     try {
-      const intent = detectClientIntent(prompt);
+      const intent = detectClientIntent(prompt, hasSite(draft));
 
-      if (intent === "domain" && hasSite(draft)) {
+      if (intent === "domain") {
         const result = await safeDomainSuggest(prompt);
         setDomains(result.domains);
         setDraft((current) =>
@@ -93,35 +93,23 @@ export default function App() {
         );
       } else {
         const result = await safeGenerate(prompt, draft);
-        if ("domains" in result) {
-          setDomains(result.domains);
-          setDraft((current) =>
-            mergeDraft(current, {
+        const rebrand = draft.brandKit.name !== result.brandKit.name;
+        setDraft((current) =>
+          mergeDraft(current, {
             prompt,
             promptHistory: appendPromptHistory(current.promptHistory, prompt),
+            brandKit: result.brandKit,
+            pages: result.pages,
             summary: result.summary,
             status: "ready",
           }),
-          );
-        } else {
-          const rebrand = draft.brandKit.name !== result.brandKit.name;
-          setDraft((current) =>
-            mergeDraft(current, {
-              prompt,
-              promptHistory: appendPromptHistory(current.promptHistory, prompt),
-              brandKit: result.brandKit,
-              pages: result.pages,
-              summary: result.summary,
-              status: "ready",
-            }),
-          );
-          if (domains.length === 0 || rebrand) {
-            const domainResult = await safeDomainSuggest(prompt);
-            setDomains(domainResult.domains);
-            if (rebrand) {
-              setSelectedDomain(null);
-              setConfirmed(false);
-            }
+        );
+        if (domains.length === 0 || rebrand) {
+          const domainResult = await safeDomainSuggest(prompt);
+          setDomains(domainResult.domains);
+          if (rebrand) {
+            setSelectedDomain(null);
+            setConfirmed(false);
           }
         }
       }

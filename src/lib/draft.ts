@@ -60,6 +60,7 @@ export function appendPromptHistory(history: string[] | undefined, prompt: strin
   return [...(history ?? []), prompt].slice(-PROMPT_HISTORY_MAX);
 }
 
-export function detectClientIntent(prompt: string): "site" | "domain" {
+export function detectClientIntent(prompt: string, hasExistingSite: boolean): "site" | "domain" {
+  if (!hasExistingSite) return "site";
   return detectDomainIntent(prompt);
 }

@@ -23,9 +23,6 @@ export async function apiGenerate(
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    if (err.intent === "domain") {
-      return apiDomainSuggest(prompt);
-    }
     throw new Error(err.error ?? "Generate failed");
   }
   return res.json() as Promise<{

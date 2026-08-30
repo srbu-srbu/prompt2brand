@@ -1,6 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { generateSite, mockFallback } from "./_lib/generateSite";
-import { detectIntent } from "./_lib/mock";
 import type { BrandKit, PageDraft } from "./_lib/types";
 
 type GenerateRequestBody = {
@@ -22,15 +21,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const prompt = typeof body.prompt === "string" ? body.prompt.trim() : "";
   if (!prompt) {
     res.status(400).json({ error: "prompt is required" });
-    return;
-  }
-
-  const intent = detectIntent(prompt);
-  if (intent === "domain") {
-    res.status(400).json({
-      error: "Domain prompts should use /api/domains/suggest",
-      intent: "domain",
-    });
     return;
   }
 
