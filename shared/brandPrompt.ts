@@ -21,6 +21,6 @@ export function extractBrandName(prompt: string): string | null {
 }
 
 export function shouldReplaceBrand(prompt: string): boolean {
-  if (REPLACE_BRAND_RE.test(prompt)) return true;
-  return extractBrandName(prompt) !== null;
+  if (/\b(rebrand|start over|from scratch|new brand|switch to a new)\b/i.test(prompt)) return true;
+  return REPLACE_BRAND_RE.test(prompt);
 }

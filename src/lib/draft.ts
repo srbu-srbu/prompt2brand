@@ -1,9 +1,13 @@
 import type { BrandKit, Draft, PageDraft } from "./types";
+import { detectDomainIntent } from "../../shared/siteHelpers";
 
 const STORAGE_KEY = "prompt2brand:draft";
 
+export const PROMPT_HISTORY_MAX = 5;
+
 export const EMPTY_DRAFT: Draft = {
   prompt: "",
+  promptHistory: [],
   brandKit: {
     name: "",
     tagline: "",
@@ -18,7 +22,7 @@ export const EMPTY_DRAFT: Draft = {
 
 export function loadDraft(): Draft {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = sessionStorage.getItem(STORAGE_KEY);
     if (!raw) return { ...EMPTY_DRAFT };
     return { ...EMPTY_DRAFT, ...JSON.parse(raw) } as Draft;
   } catch {
@@ -27,11 +31,11 @@ export function loadDraft(): Draft {
 }
 
 export function saveDraft(draft: Draft) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(draft));
+  sessionStorage.setItem(STORAGE_KEY, JSON.stringify(draft));
 }
 
 export function clearDraft() {
-  localStorage.removeItem(STORAGE_KEY);
+  sessionStorage.removeItem(STORAGE_KEY);
 }
 
 export function hasSite(draft: Draft) {
@@ -48,11 +52,14 @@ export function mergeDraft(
     brandKit: patch.brandKit ?? current.brandKit,
     pages: patch.pages ?? current.pages,
     summary: patch.summary ?? current.summary,
+    promptHistory: patch.promptHistory ?? current.promptHistory,
   };
 }
 
+export function appendPromptHistory(history: string[] | undefined, prompt: string): string[] {
+  return [...(history ?? []), prompt].slice(-PROMPT_HISTORY_MAX);
+}
+
 export function detectClientIntent(prompt: string): "site" | "domain" {
-  const lower = prompt.toLowerCase();
-  const domainHints = ["domain", "name", ".com", "shorter", "playful", "prefix", "url"];
-  return domainHints.some((hint) => lower.includes(hint)) ? "domain" : "site";
+  return detectDomainIntent(prompt);
 }

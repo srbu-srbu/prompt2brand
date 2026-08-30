@@ -10,6 +10,7 @@ import {
   safePublish,
 } from "@/lib/api";
 import {
+  appendPromptHistory,
   detectClientIntent,
   hasSite,
   loadDraft,
@@ -50,7 +51,7 @@ export default function App() {
   const [draft, setDraft] = useState<Draft>(() => loadDraft());
   const [promptInput, setPromptInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [domainCardCollapsed, setDomainCardCollapsed] = useState(false);
+  const [domainCardCollapsed, setDomainCardCollapsed] = useState(true);
   const [domains, setDomains] = useState<DomainSuggestion[]>([]);
   const [selectedDomain, setSelectedDomain] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState(false);
@@ -83,14 +84,24 @@ export default function App() {
         const result = await safeDomainSuggest(prompt);
         setDomains(result.domains);
         setDraft((current) =>
-          mergeDraft(current, { summary: result.summary, status: "ready" }),
+          mergeDraft(current, {
+            prompt,
+            promptHistory: appendPromptHistory(current.promptHistory, prompt),
+            summary: result.summary,
+            status: "ready",
+          }),
         );
       } else {
         const result = await safeGenerate(prompt, draft);
         if ("domains" in result) {
           setDomains(result.domains);
           setDraft((current) =>
-            mergeDraft(current, { summary: result.summary, status: "ready" }),
+            mergeDraft(current, {
+            prompt,
+            promptHistory: appendPromptHistory(current.promptHistory, prompt),
+            summary: result.summary,
+            status: "ready",
+          }),
           );
         } else {
           const rebrand = draft.brandKit.name !== result.brandKit.name;
@@ -152,9 +163,9 @@ export default function App() {
   );
 
   return (
-    <div className="flex h-dvh flex-col overflow-hidden bg-zinc-50">
+    <div className="relative flex h-dvh flex-col overflow-hidden bg-zinc-50">
+      <div className="preview-canvas pointer-events-none absolute inset-0" aria-hidden="true" />
       <div className="relative flex min-h-0 flex-1 flex-col">
-        <div className="preview-canvas pointer-events-none absolute inset-0" aria-hidden="true" />
         <header className="app-header relative shrink-0 pt-3">
           <div className="app-shell flex items-center justify-between pb-3">
             <div>
@@ -177,20 +188,20 @@ export default function App() {
         </main>
       </div>
 
-      <footer className="relative z-20 shrink-0 bg-zinc-50/90 pb-3 backdrop-blur-sm">
+      <footer className="relative z-20 shrink-0 pb-3">
         <div className="app-shell pt-3">
           <div className="shell-divider mb-3" aria-hidden="true" />
           <div className="relative">
-            <SummaryLines
-              lines={draft.summary}
-              className={hasSite(draft) ? "max-w-[calc(100%-11.5rem)] pr-2" : undefined}
-            />
+            <div className="summary-zone">
+              <SummaryLines
+                lines={draft.summary}
+                className="max-w-[calc(100%-11.5rem)] pr-2"
+              />
+            </div>
             <div className="relative mt-2">
-              {hasSite(draft) ? (
-                <div className="absolute bottom-full right-0 z-40 mb-2 w-full max-w-2xl">
-                  <DomainCard {...cardProps} />
-                </div>
-              ) : null}
+              <div className="absolute bottom-full right-0 z-40 mb-2 w-full max-w-2xl">
+                <DomainCard {...cardProps} />
+              </div>
               <PromptBar
                 value={promptInput}
                 onChange={setPromptInput}

@@ -1,4 +1,3 @@
-import type { CSSProperties } from "react";
 import type { BrandKit, PageDraft } from "@/lib/types";
 
 type BrandPreviewProps = {
@@ -7,7 +6,7 @@ type BrandPreviewProps = {
   activeSlug?: string;
 };
 
-export function BrandPreview({ brandKit, pages, activeSlug = "home" }: BrandPreviewProps) {
+export function BrandPreview({ pages, activeSlug = "home" }: BrandPreviewProps) {
   const page = pages.find((p) => p.slug === activeSlug) ?? pages[0];
 
   if (!page) {
@@ -19,18 +18,9 @@ export function BrandPreview({ brandKit, pages, activeSlug = "home" }: BrandPrev
   }
 
   return (
-    <div
-      className="relative z-0 flex h-full flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm"
-      style={
-        {
-          "--brand-primary": brandKit.primaryColor,
-          "--brand-accent": brandKit.accentColor,
-          fontFamily: brandKit.fontFamily,
-        } as CSSProperties
-      }
-    >
+    <div className="relative z-0 flex h-full flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
       <div
-        className="preview-content min-h-0 flex-1 overflow-auto p-6 [&_a]:inline-block [&_a]:rounded-md [&_a]:bg-[var(--brand-primary)] [&_a]:px-4 [&_a]:py-2 [&_a]:text-white [&_h1]:text-3xl [&_h1]:font-bold [&_h1]:text-[var(--brand-primary)] [&_h2]:mt-4 [&_h2]:text-xl [&_h2]:font-semibold [&_header]:mb-6 [&_p]:mt-2 [&_p]:text-zinc-600"
+        className="preview-content min-h-0 flex-1 overflow-auto bg-white"
         dangerouslySetInnerHTML={{ __html: page.bodyHtml }}
       />
     </div>

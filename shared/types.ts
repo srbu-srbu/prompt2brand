@@ -14,6 +14,7 @@ export interface PageDraft {
 
 export interface Draft {
   prompt: string;
+  promptHistory: string[];
   brandKit: BrandKit;
   pages: PageDraft[];
   summary: [string, string];

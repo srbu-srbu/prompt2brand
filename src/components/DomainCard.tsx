@@ -48,11 +48,7 @@ export function DomainCard({
       );
       onDomainsChange([...domains, ...data.domains]);
     } catch {
-      onDomainsChange([
-        ...domains,
-        { fqdn: "pawfuel.io", priceLabel: "Available" },
-        { fqdn: "pawfuel.pet", priceLabel: "Available" },
-      ]);
+      // No fallback suggestions when the API is unavailable.
     }
   }
 
@@ -84,9 +80,11 @@ export function DomainCard({
                   </li>
                 ))}
               </ul>
-              <Button variant="outline" size="sm" className="mt-2 bg-white" onClick={loadMore}>
-                More suggestions
-              </Button>
+              {domains.length > 0 ? (
+                <Button variant="outline" size="sm" className="mt-2 bg-white" onClick={loadMore}>
+                  More suggestions
+                </Button>
+              ) : null}
             </section>
 
             <section className="min-h-0 overflow-y-auto bg-zinc-50 p-3">

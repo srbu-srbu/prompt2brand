@@ -1,5 +1,4 @@
 import type { DomainSuggestion } from "./types";
-import { MOCK_DOMAINS } from "./mock";
 import { hasNamecomConfig, searchDomains, type NamecomSearchResult } from "./namecom";
 
 const STOP_WORDS = new Set([
@@ -97,7 +96,7 @@ export async function suggestDomainsFromPrompt(prompt: string): Promise<{
   source: "namecom" | "mock";
 }> {
   if (!hasNamecomConfig()) {
-    return { domains: [...MOCK_DOMAINS], source: "mock" };
+    return { domains: [], source: "mock" };
   }
 
   try {
@@ -108,13 +107,13 @@ export async function suggestDomainsFromPrompt(prompt: string): Promise<{
     ).slice(0, 8);
 
     if (domains.length === 0) {
-      return { domains: [...MOCK_DOMAINS], source: "mock" };
+      return { domains: [], source: "mock" };
     }
 
     return { domains, source: "namecom" };
   } catch (error) {
     console.error("name.com suggest failed", error);
-    return { domains: [...MOCK_DOMAINS], source: "mock" };
+    return { domains: [], source: "mock" };
   }
 }
 
@@ -123,10 +122,7 @@ export async function suggestMoreDomains(input: {
   keyword?: string;
 }): Promise<{ domains: DomainSuggestion[]; source: "namecom" | "mock" }> {
   if (!hasNamecomConfig()) {
-    return {
-      domains: MOCK_DOMAINS.filter((domain) => !input.exclude.includes(domain.fqdn)),
-      source: "mock",
-    };
+    return { domains: [], source: "mock" };
   }
 
   try {
@@ -145,9 +141,6 @@ export async function suggestMoreDomains(input: {
     return { domains, source: "namecom" };
   } catch (error) {
     console.error("name.com suggest-more failed", error);
-    return {
-      domains: MOCK_DOMAINS.filter((domain) => !input.exclude.includes(domain.fqdn)),
-      source: "mock",
-    };
+    return { domains: [], source: "mock" };
   }
 }

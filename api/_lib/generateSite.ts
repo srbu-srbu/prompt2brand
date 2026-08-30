@@ -1,14 +1,12 @@
 import { generateObject } from "ai";
 import { z } from "zod";
 import type { BrandKit, PageDraft } from "./types";
-import {
-  MOCK_BRAND,
-  MOCK_PAGES,
-  mockSiteFromPrompt,
-} from "./mock";
-import { shouldReplaceBrand } from "../../shared/brandPrompt";
+import { buildMockHomePageHtml } from "../../shared/siteHelpers";
 
 const MODEL_ID = "google/gemini-2.5-flash-lite";
+const PROMPT_HISTORY_MAX = 5;
+const PAGE_BODY_MAX = 24000;
+const PAGE_CONTEXT_MAX = 8000;
 
 const hexColorSchema = z.string().transform((val) => {
   const trimmed = val.trim();
@@ -19,7 +17,7 @@ const hexColorSchema = z.string().transform((val) => {
 
 const brandKitSchema = z.object({
   name: z.string().min(1).max(80),
-  tagline: z.string().min(1).max(160),
+  tagline: z.string().min(1).max(200),
   primaryColor: hexColorSchema,
   accentColor: hexColorSchema,
   fontFamily: z.string().min(1).max(120),
@@ -38,13 +36,13 @@ const pageSchema = z.object({
         .slice(0, 40) || "home",
     ),
   title: z.string().min(1).max(80),
-  bodyHtml: z.string().min(1).max(12000),
+  bodyHtml: z.string().min(1).max(PAGE_BODY_MAX),
 });
 
 const generateSiteSchema = z.object({
   brandKit: brandKitSchema,
   pages: z.array(pageSchema).min(1).max(5),
-  summary: z.tuple([z.string().max(80), z.string().max(80)]),
+  summary: z.tuple([z.string().max(120), z.string().max(120)]),
 });
 
 export type GenerateSiteInput = {
@@ -52,6 +50,7 @@ export type GenerateSiteInput = {
   draft?: {
     brandKit?: BrandKit;
     pages?: PageDraft[];
+    promptHistory?: string[];
   };
 };
 
@@ -66,113 +65,138 @@ function hasGatewayAuth(): boolean {
   return Boolean(process.env.AI_GATEWAY_API_KEY ?? process.env.VERCEL_OIDC_TOKEN);
 }
 
-function summarizeDraftForLlm(draft?: GenerateSiteInput["draft"]) {
+function recentPromptsForLlm(input: GenerateSiteInput): string[] {
+  return [...(input.draft?.promptHistory ?? []), input.prompt].slice(-PROMPT_HISTORY_MAX);
+}
+
+function draftContextForLlm(draft: GenerateSiteInput["draft"]) {
   if (!draft?.pages?.length) return undefined;
+
   return {
     brandKit: draft.brandKit,
     pages: draft.pages.map((page) => ({
       slug: page.slug,
       title: page.title,
-      bodyPreview: page.bodyHtml.replace(/\s+/g, " ").slice(0, 400),
+      bodyHtml: page.bodyHtml.slice(0, PAGE_CONTEXT_MAX),
     })),
   };
 }
 
-function buildSystemPrompt(mode: "create" | "update" | "replace"): string {
-  const modeLine =
-    mode === "create"
-      ? "Create a new brand website draft from the user's prompt."
-      : mode === "replace"
-        ? "The user wants a NEW brand/site. Replace the draft entirely with content for the business described in their prompt. Do not keep the previous brand name, copy, or theme unless the user explicitly asks to."
-        : "Update the existing brand site draft based on the user's latest prompt. Preserve slugs unless the user asks to add or remove pages.";
+function buildSystemPrompt(): string {
+  return `You generate content for prompt2brand, a prompt-to-brand website builder.
 
-  return `${modeLine}
+Infer the user's intent from their recent prompts and any existing draft:
+- Create a new site when the draft is empty or they describe a new business from scratch.
+- Update the current site when they ask to tweak copy, layout, colors, or sections.
+- Replace the site when they explicitly ask for a new brand, rebrand, or a different business.
 
-You generate content for prompt2brand, a prompt-to-brand website builder.
+When updating, start from the current draft HTML/CSS and change only what the prompts request.
+When replacing, ignore the previous brand unless they ask to keep something.
 
 Rules:
 - Return JSON matching the schema only.
-- brandKit: concise brand name, tagline, two hex colors (#RRGGBB), a web-safe font stack.
-- pages: 1 to 5 self-contained HTML page bodies (NOT full documents). Always include slug "home".
-- bodyHtml: semantic HTML only (<header>, <main>, <section>, <h1>-<h3>, <p>, <a role="button">). No <html>, <head>, <body>, <script>, or external CSS.
-- Keep copy specific to the user's business idea; avoid generic lorem ipsum and unrelated sample brands.
+- brandKit: brand name, tagline, two hex colors (#RRGGBB), a web-safe font stack.
+- pages: 1 to 5 HTML page bodies (NOT full documents). Always include slug "home".
+- bodyHtml: a polished, self-styled HTML fragment for one page. Put a <style> block first with layout, typography, and color CSS. Use semantic HTML (header, nav, main, section, footer, article). Inline style attributes are fine.
+- No <html>, <head>, <body>, <script>, external stylesheets, or CDN links.
+- Match the user's business and latest prompt. Never revert to unrelated sample brands unless the user asked for that business.
 - summary: exactly two short factual lines (not chatty). Line 2 may reference the latest cue briefly.
 - Slugs: lowercase letters, numbers, hyphens only.`;
 }
 
-function buildUserPrompt(
-  input: GenerateSiteInput,
-  mode: "create" | "update" | "replace",
-): string {
-  if (mode === "create") {
-    return `User prompt:\n${input.prompt}`;
+function buildUserPrompt(input: GenerateSiteInput): string {
+  const recentPrompts = recentPromptsForLlm(input);
+  const draft = draftContextForLlm(input.draft);
+
+  const payload: {
+    recentPrompts: string[];
+    currentPrompt: string;
+    draft?: ReturnType<typeof draftContextForLlm>;
+  } = {
+    recentPrompts,
+    currentPrompt: input.prompt,
+  };
+
+  if (draft) {
+    payload.draft = draft;
   }
 
-  const summary = summarizeDraftForLlm(input.draft);
-  return `User prompt:\n${input.prompt}
-
-Current draft summary (for context only${mode === "replace" ? " — replace this brand entirely" : ""}):
-${JSON.stringify(summary, null, 2)}`;
+  return JSON.stringify(payload, null, 2);
 }
 
-function mockFallback(prompt: string, hasExistingSite: boolean): GenerateSiteResult {
-  const generated = hasExistingSite
-    ? mockSiteFromPrompt(prompt)
-    : { brandKit: MOCK_BRAND, pages: MOCK_PAGES };
+function mockFallback(input: GenerateSiteInput): GenerateSiteResult {
+  const hasExistingSite = Boolean(input.draft?.pages?.length);
+
+  if (hasExistingSite && input.draft?.brandKit && input.draft.pages?.length) {
+    return {
+      brandKit: input.draft.brandKit,
+      pages: input.draft.pages,
+      summary: [
+        "AI unavailable — kept your current preview.",
+        `Latest cue: ${input.prompt.slice(0, 60)}`,
+      ],
+      source: "mock",
+    };
+  }
 
   return {
-    brandKit: generated.brandKit,
-    pages: generated.pages,
+    brandKit: input.draft?.brandKit ?? {
+      name: "",
+      tagline: "",
+      primaryColor: "#2563eb",
+      accentColor: "#f59e0b",
+      fontFamily: "system-ui, sans-serif",
+    },
+    pages: [],
     summary: [
-      hasExistingSite ? "Updated site from your prompt." : "Built your brand preview.",
-      `Latest cue: ${prompt.slice(0, 60)}`,
+      "AI unavailable — no preview generated.",
+      `Latest cue: ${input.prompt.slice(0, 60)}`,
     ],
     source: "mock",
   };
 }
 
-export async function generateSite(input: GenerateSiteInput): Promise<GenerateSiteResult> {
-  const hasExistingSite = Boolean(input.draft?.pages?.length);
-  const replaceBrand = hasExistingSite && shouldReplaceBrand(input.prompt);
-  const mode: "create" | "update" | "replace" = !hasExistingSite
-    ? "create"
-    : replaceBrand
-      ? "replace"
-      : "update";
+function ensureHomePage(pages: PageDraft[], brandKit: BrandKit): PageDraft[] {
+  if (pages.some((page) => page.slug === "home")) return pages;
 
+  return [
+    {
+      slug: "home",
+      title: "Home",
+      bodyHtml: buildMockHomePageHtml(
+        brandKit.name,
+        brandKit.tagline,
+        brandKit.primaryColor,
+        brandKit.accentColor,
+      ),
+    },
+    ...pages,
+  ];
+}
+
+export async function generateSite(input: GenerateSiteInput): Promise<GenerateSiteResult> {
   if (!hasGatewayAuth()) {
     console.warn("generateSite: no AI gateway auth, using mock");
-    return mockFallback(input.prompt, hasExistingSite);
+    return mockFallback(input);
   }
 
   try {
     const { object } = await generateObject({
       model: MODEL_ID,
       schema: generateSiteSchema,
-      system: buildSystemPrompt(mode),
-      prompt: buildUserPrompt(input, mode),
-      temperature: 0.7,
+      system: buildSystemPrompt(),
+      prompt: buildUserPrompt(input),
+      temperature: 0.55,
     });
-
-    const pages = object.pages.some((page) => page.slug === "home")
-      ? object.pages
-      : [
-          {
-            slug: "home",
-            title: "Home",
-            bodyHtml: `<header><h1>${object.brandKit.name}</h1><p>${object.brandKit.tagline}</p></header><main><section><h2>Welcome</h2><p>${object.brandKit.tagline}</p></section></main>`,
-          },
-          ...object.pages,
-        ];
 
     return {
       brandKit: object.brandKit,
-      pages,
+      pages: ensureHomePage(object.pages, object.brandKit),
       summary: object.summary,
       source: "llm",
     };
   } catch (error) {
-    console.error("generateSite failed, using mock fallback", error);
-    return mockFallback(input.prompt, hasExistingSite);
+    console.error("generateSite failed, preserving draft when possible", error);
+    return mockFallback(input);
   }
 }
