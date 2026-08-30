@@ -148,7 +148,7 @@ Rules:
 - Return JSON matching the schema only.
 - brandKit: brand name, tagline, two hex colors (#RRGGBB), a web-safe font stack.
 - pages: 1 to 5 HTML page bodies (NOT full documents). Always include slug "home".
-- bodyHtml: a polished, self-styled HTML fragment for one page. Put a <style> block first with layout, typography, and color CSS. Use semantic HTML (header, nav, main, section, footer, article). Inline style attributes are fine.
+- bodyHtml: a polished, self-styled HTML fragment for one page. Put a <style> block first with layout, typography, and color CSS. Scope styles to your fragment (use class selectors); do not style html, body, or unscoped header/nav/main elements that could leak if mis-rendered. Use semantic HTML (header, nav, main, section, footer, article). Inline style attributes are fine.
 - No <html>, <head>, <body>, <script>, external stylesheets, or CDN links.
 - Match the user's business and latest prompt. Never revert to unrelated sample brands unless the user asked for that business.
 - summary: exactly two short factual lines (line1 and line2). Line2 may reference the latest cue briefly.
