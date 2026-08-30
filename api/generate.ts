@@ -47,16 +47,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       pages: generated.pages,
       summary: generated.summary,
       source: generated.source,
+      ...(generated.error ? { error: generated.error } : {}),
     });
   } catch (error) {
     console.error("generate handler failed", error);
-    const generated = mockFallback({ prompt, draft: body.draft });
+    const message = error instanceof Error ? error.message : "generate handler failed";
+    const generated = mockFallback({ prompt, draft: body.draft }, message);
     res.status(200).json({
       intent: "site",
       brandKit: generated.brandKit,
       pages: generated.pages,
       summary: generated.summary,
       source: generated.source,
+      error: generated.error,
     });
   }
 }

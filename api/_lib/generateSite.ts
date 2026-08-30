@@ -105,6 +105,7 @@ export type GenerateSiteResult = {
   pages: PageDraft[];
   summary: [string, string];
   source: "llm" | "mock";
+  error?: string;
 };
 
 function gatewayAuthToken(): string | undefined {
@@ -174,7 +175,7 @@ function buildUserPrompt(input: GenerateSiteInput): string {
   return JSON.stringify(payload, null, 2);
 }
 
-export function mockFallback(input: GenerateSiteInput): GenerateSiteResult {
+export function mockFallback(input: GenerateSiteInput, error?: string): GenerateSiteResult {
   const hasExistingSite = Boolean(input.draft?.pages?.length);
 
   if (hasExistingSite && input.draft?.brandKit && input.draft.pages?.length) {
@@ -186,6 +187,7 @@ export function mockFallback(input: GenerateSiteInput): GenerateSiteResult {
         `Latest cue: ${input.prompt.slice(0, 60)}`,
       ],
       source: "mock",
+      error,
     };
   }
 
@@ -203,6 +205,7 @@ export function mockFallback(input: GenerateSiteInput): GenerateSiteResult {
       `Latest cue: ${input.prompt.slice(0, 60)}`,
     ],
     source: "mock",
+    error,
   };
 }
 
@@ -297,7 +300,8 @@ export async function generateSite(input: GenerateSiteInput): Promise<GenerateSi
       source: "llm",
     };
   } catch (error) {
+    const message = error instanceof Error ? error.message : "generateSite failed";
     console.error("generateSite failed, preserving draft when possible", error);
-    return mockFallback(input);
+    return mockFallback(input, message);
   }
 }
