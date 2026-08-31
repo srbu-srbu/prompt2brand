@@ -1,7 +1,14 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import type { BrandKit, PageDraft } from "../_lib/types";
 import { hasNamecomConfig, registerDomainWithDns } from "../_lib/namecom";
-import { createSiteId, hostedUrlForSite, savePublishedSite, updateSiteDomainStatus } from "../_lib/sites";
+import {
+  createSiteId,
+  hostedUrlForSite,
+  savePublishedSite,
+  updateSiteDomainStatus,
+  updateSiteHosting,
+} from "../_lib/sites";
+import { createSiteDeployment, hasVercelDeployConfig } from "../_lib/vercelDeploy";
 
 type PublishBody = {
   draft?: {
@@ -39,9 +46,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const siteId = createSiteId();
-  const deployTargetUrl = hostedUrlForSite(siteId);
   const fallbackUrl = `${appOrigin(req)}/api/sites/${siteId}/home`;
-
+  let hostedUrl = hostedUrlForSite(siteId);
+  let hostingStatus: "pending" | "live" | "failed" = "pending";
+  let vercelDeploymentId: string | null = null;
   let domainStatus: "pending" | "live" | "failed" = "pending";
   let domainSource: "namecom" | "mock" = "mock";
 
@@ -53,13 +61,47 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       brandKit,
       pages,
       domainStatus,
+      hostingStatus: "pending",
     });
+
+    if (hasVercelDeployConfig()) {
+      try {
+        const deployment = await createSiteDeployment({ siteId, pages, brandKit });
+        vercelDeploymentId = deployment.deploymentId;
+        hostedUrl = deployment.hostedUrl;
+        hostingStatus = "pending";
+        await updateSiteHosting(siteId, {
+          hostedUrl,
+          hostingStatus,
+          vercelDeploymentId,
+        });
+      } catch (error) {
+        console.error("vercel deploy failed", error);
+        hostingStatus = "failed";
+        hostedUrl = fallbackUrl;
+        await updateSiteHosting(siteId, {
+          hostedUrl: fallbackUrl,
+          hostingStatus: "failed",
+          vercelDeploymentId: null,
+        });
+      }
+    } else {
+      hostingStatus = "live";
+      hostedUrl = fallbackUrl;
+      await updateSiteHosting(siteId, {
+        hostedUrl: fallbackUrl,
+        hostingStatus: "live",
+        vercelDeploymentId: null,
+      });
+    }
+
+    const dnsTargetUrl = hostingStatus === "failed" ? fallbackUrl : hostedUrl;
 
     if (hasNamecomConfig()) {
       try {
         await registerDomainWithDns({
           fqdn: domainFqdn,
-          hostedUrl: fallbackUrl,
+          hostedUrl: dnsTargetUrl,
           idempotencyKey: siteId,
         });
         domainStatus = "live";
@@ -75,12 +117,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     res.status(200).json({
       siteId,
-      hostedUrl: fallbackUrl,
-      deployTargetUrl,
+      hostedUrl,
+      fallbackUrl,
       domainFqdn,
-      hostingStatus: "live",
+      hostingStatus,
       domainStatus,
       domainSource,
+      vercelDeploymentId,
     });
   } catch (error) {
     console.error("publish failed", error);

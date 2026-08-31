@@ -27,18 +27,22 @@ export async function savePublishedSite(input: {
   brandKit: BrandKit;
   pages: PageDraft[];
   domainStatus?: "pending" | "live" | "failed";
+  hostingStatus?: "pending" | "live" | "failed";
+  vercelDeploymentId?: string | null;
 }): Promise<void> {
   const sql = getSql();
   const domainStatus = input.domainStatus ?? "pending";
+  const hostingStatus = input.hostingStatus ?? "pending";
 
   await sql`
-    INSERT INTO sites (site_id, hosted_url, domain_fqdn, hosting_status, domain_status)
+    INSERT INTO sites (site_id, hosted_url, domain_fqdn, hosting_status, domain_status, vercel_deployment_id)
     VALUES (
       ${input.siteId},
       ${input.hostedUrl},
       ${input.domainFqdn},
-      'live',
-      ${domainStatus}
+      ${hostingStatus},
+      ${domainStatus},
+      ${input.vercelDeploymentId ?? null}
     )
   `;
 
@@ -59,6 +63,25 @@ export async function updateSiteDomainStatus(
   await sql`
     UPDATE sites
     SET domain_status = ${domainStatus}
+    WHERE site_id = ${siteId}
+  `;
+}
+
+export async function updateSiteHosting(
+  siteId: string,
+  input: {
+    hostedUrl: string;
+    hostingStatus: "pending" | "live" | "failed";
+    vercelDeploymentId?: string | null;
+  },
+): Promise<void> {
+  const sql = getSql();
+  await sql`
+    UPDATE sites
+    SET
+      hosted_url = ${input.hostedUrl},
+      hosting_status = ${input.hostingStatus},
+      vercel_deployment_id = ${input.vercelDeploymentId ?? null}
     WHERE site_id = ${siteId}
   `;
 }
