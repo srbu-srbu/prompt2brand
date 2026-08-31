@@ -234,10 +234,26 @@ export function DomainCard({
   const [conflictsLoading, setConflictsLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [moreMessage, setMoreMessage] = useState<string | null>(null);
+  const [liveIntegrations, setLiveIntegrations] = useState<boolean | null>(null);
   const showLaunchStatus =
     Boolean(published) || (launchUiPhase === "status" && Boolean(launchPreview));
   const showLaunchSpinner = launchUiPhase === "spinner" && Boolean(launchPreview);
   const conflictMatchKeyword = selectedDomain ? conflictKeyword(selectedDomain) : "";
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetch("/api/health")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { liveIntegrations?: boolean } | null) => {
+        if (!cancelled && data) setLiveIntegrations(Boolean(data.liveIntegrations));
+      })
+      .catch(() => {
+        if (!cancelled) setLiveIntegrations(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!selectedDomain) {
@@ -423,19 +439,26 @@ export function DomainCard({
                 />
                 I confirm this website and domain
               </label>
-              <Button
-                size="lg"
-                className="w-full sm:w-auto"
-                disabled={!selectedDomain || !confirmed || launching || !hasWebsite}
-                onClick={onLaunch}
-              >
-                {launching ? "Launching..." : "Launch brand"}
-              </Button>
-              <p className="mt-1.5 text-xs text-zinc-500">
-                {hasWebsite
-                  ? "Includes hosted website and domain registration · Sandbox - no charge"
-                  : "Create a website first, then return here to launch."}
-              </p>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                <Button
+                  size="default"
+                  className="h-9 px-4 text-base"
+                  disabled={!selectedDomain || !confirmed || launching || !hasWebsite}
+                  onClick={onLaunch}
+                >
+                  {launching ? "Launching..." : "Launch brand"}
+                </Button>
+                {liveIntegrations !== null ? (
+                  <p className="text-sm text-zinc-600">
+                    Live Integration:{" "}
+                    <span
+                      className={liveIntegrations ? "font-medium text-emerald-700" : "font-medium text-zinc-500"}
+                    >
+                      {liveIntegrations ? "On" : "Off"}
+                    </span>
+                  </p>
+                ) : null}
+              </div>
             </div>
           </>
         )}

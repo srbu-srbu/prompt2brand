@@ -127,6 +127,13 @@ export async function checkDomainAvailability(domainNames: string[]): Promise<Na
   return data.results ?? [];
 }
 
+function registrationYearsForFqdn(fqdn: string): number {
+  const tld = fqdn.split(".").pop()?.toLowerCase() ?? "";
+  // name.com defaults to 2-year minimum for .ai registrations.
+  if (tld === "ai") return 2;
+  return 1;
+}
+
 export async function createDomain(input: {
   fqdn: string;
   purchasePrice?: number;
@@ -136,7 +143,7 @@ export async function createDomain(input: {
 }): Promise<void> {
   const body: Record<string, unknown> = {
     domain: { domainName: input.fqdn },
-    years: 1,
+    years: registrationYearsForFqdn(input.fqdn),
     purchaseType: input.purchaseType ?? "registration",
   };
 

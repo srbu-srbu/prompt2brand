@@ -57,8 +57,8 @@ export function domainSteps(
 ): LaunchStep[] {
   if (status === "failed") {
     return padSteps([
-      { text: "Registering with name.com", phase: "done" },
-      { text: "Pointing DNS to your site", phase: "failed" },
+      { text: "Registering with name.com", phase: "failed" },
+      { text: "Pointing DNS to your site", phase: "waiting" },
     ]);
   }
 
