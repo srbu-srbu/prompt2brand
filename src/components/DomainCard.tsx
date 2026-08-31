@@ -1,8 +1,22 @@
+import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLaunchStatus } from "@/lib/launchStatus";
+import {
+  domainSteps,
+  hostingSteps,
+  LAUNCH_STEP_SLOTS,
+  overallLaunchStatus,
+  type LaunchStep,
+} from "@/lib/launchSteps";
 import { conflictsForDomain, apiDomainSuggestMore } from "@/lib/api";
 import type { DomainSuggestion, PublishedSite } from "@/lib/types";
 import { cn } from "@/lib/utils";
+
+type LaunchPreview = {
+  domainFqdn: string;
+};
+
+export type LaunchUiPhase = "idle" | "spinner" | "status";
 
 type DomainCardProps = {
   domains: DomainSuggestion[];
@@ -13,6 +27,8 @@ type DomainCardProps = {
   onConfirmChange: (confirmed: boolean) => void;
   onLaunch: () => void;
   launching?: boolean;
+  launchUiPhase?: LaunchUiPhase;
+  launchPreview?: LaunchPreview | null;
   brandName: string;
   hasWebsite?: boolean;
   published?: (PublishedSite & { siteId: string }) | null;
@@ -32,45 +48,128 @@ function StatusDot({ status }: { status: "pending" | "live" | "failed" }) {
   );
 }
 
-function LaunchStatusPanel({
-  published,
-}: {
-  published: PublishedSite & { siteId: string };
-}) {
-  const status = useLaunchStatus(published.siteId);
+function LaunchStepLine({ step }: { step: LaunchStep }) {
+  const hasContent = step.text.trim().length > 0;
+  if (!hasContent) {
+    return <p className="h-[1.125rem]" aria-hidden />;
+  }
 
   return (
-    <div className="p-4">
-      <h2 className="text-base font-semibold text-zinc-900">Your brand is launching</h2>
-      <p className="mt-1 text-sm text-zinc-500">Links will become live as hosting and DNS finish.</p>
+    <p
+      className={cn(
+        "h-[1.125rem] overflow-hidden text-xs leading-[1.125rem]",
+        step.phase === "waiting" && "invisible",
+        step.phase === "active" && "launch-step-active text-zinc-500",
+        step.phase === "done" && "launch-step-done text-zinc-600",
+        step.phase === "failed" && "text-red-600",
+      )}
+      aria-hidden={step.phase === "waiting"}
+    >
+      {step.text}
+      {step.phase === "active" ? "…" : null}
+    </p>
+  );
+}
 
-      <ul className="mt-4 space-y-3">
-        <li className="flex items-center gap-3">
-          <StatusDot status={status.hostingStatus} />
+function LaunchSpinnerPanel({ domainFqdn }: { domainFqdn: string }) {
+  return (
+    <div className="launch-spinner-enter flex min-h-[220px] flex-col items-center justify-center p-8">
+      <Loader2 className="h-7 w-7 animate-spin text-zinc-400" aria-hidden />
+      <p className="mt-4 text-sm font-medium text-zinc-900">Launching your brand</p>
+      <p className="mt-1 text-xs text-zinc-500">{domainFqdn}</p>
+    </div>
+  );
+}
+
+function LaunchStatusRow({
+  status,
+  url,
+  urlLabel,
+  steps,
+}: {
+  status: "pending" | "live" | "failed";
+  url: string | null;
+  urlLabel: string;
+  steps: LaunchStep[];
+}) {
+  const href = url?.startsWith("http") ? url : url ? `https://${url}` : null;
+
+  return (
+    <li className="flex items-start gap-3">
+      <span className="mt-1.5">
+        <StatusDot status={status} />
+      </span>
+      <div className="min-w-0 flex-1">
+        {href ? (
           <a
-            href={published.hostedUrl}
+            href={href}
             target="_blank"
             rel="noreferrer"
-            className="min-w-0 flex-1 truncate text-sm font-medium text-zinc-900 underline-offset-2 hover:underline"
+            className="block truncate text-sm font-medium text-zinc-900 underline-offset-2 hover:underline"
           >
-            {published.hostedUrl}
+            {urlLabel}
           </a>
-          <span className="shrink-0 text-xs capitalize text-zinc-500">{status.hostingStatus}</span>
-        </li>
-        <li className="flex items-center gap-3">
-          <StatusDot status={status.domainStatus ?? "pending"} />
-          <a
-            href={`https://${published.domainFqdn}`}
-            target="_blank"
-            rel="noreferrer"
-            className="min-w-0 flex-1 truncate text-sm font-medium text-zinc-900 underline-offset-2 hover:underline"
-          >
-            {published.domainFqdn}
-          </a>
-          <span className="shrink-0 text-xs capitalize text-zinc-500">
-            {status.domainStatus ?? "pending"}
-          </span>
-        </li>
+        ) : (
+          <p className="truncate text-sm font-medium text-zinc-500">{urlLabel}</p>
+        )}
+        <div
+          className="mt-1 space-y-0.5"
+          style={{ minHeight: `${LAUNCH_STEP_SLOTS * 1.125 + (LAUNCH_STEP_SLOTS - 1) * 0.125}rem` }}
+        >
+          {steps.map((step, index) => (
+            <LaunchStepLine key={`${step.text}-${index}`} step={step} />
+          ))}
+        </div>
+      </div>
+    </li>
+  );
+}
+
+function LaunchStatusPanel({
+  domainFqdn,
+  hostedUrl,
+  siteId,
+  launching,
+}: {
+  domainFqdn: string;
+  hostedUrl: string | null;
+  siteId: string | null;
+  launching: boolean;
+}) {
+  const polled = useLaunchStatus(siteId);
+  const hostingStatus = siteId ? polled.hostingStatus : "pending";
+  const domainStatus = siteId ? (polled.domainStatus ?? "pending") : "pending";
+  const resolvedHostedUrl = hostedUrl ?? polled.hostedUrl;
+  const overall = overallLaunchStatus(hostingStatus, domainStatus);
+  const allLive = overall === "live";
+
+  return (
+    <div className="launch-status-enter p-4">
+      <div className="flex items-center gap-2">
+        <StatusDot status={overall} />
+        <h2 className="text-base font-semibold text-zinc-900">
+          {allLive ? "Your brand is live" : "Your brand is launching"}
+        </h2>
+      </div>
+      <p className="mt-1 text-sm text-zinc-500">
+        {allLive
+          ? "Both links are ready — open them in a new tab."
+          : "Status updates below as hosting and DNS finish."}
+      </p>
+
+      <ul className="mt-4 space-y-4">
+        <LaunchStatusRow
+          status={hostingStatus}
+          url={resolvedHostedUrl}
+          urlLabel={resolvedHostedUrl ?? "Preparing your Vercel URL…"}
+          steps={hostingSteps(launching, hostingStatus)}
+        />
+        <LaunchStatusRow
+          status={domainStatus}
+          url={domainFqdn}
+          urlLabel={domainFqdn}
+          steps={domainSteps(launching, domainStatus)}
+        />
       </ul>
     </div>
   );
@@ -85,12 +184,16 @@ export function DomainCard({
   onConfirmChange,
   onLaunch,
   launching,
+  launchUiPhase = "idle",
+  launchPreview,
   brandName,
   hasWebsite = false,
   published,
 }: DomainCardProps) {
   const conflicts = selectedDomain ? conflictsForDomain(selectedDomain) : [];
-  const launched = Boolean(published);
+  const showLaunchStatus =
+    Boolean(published) || (launchUiPhase === "status" && Boolean(launchPreview));
+  const showLaunchSpinner = launchUiPhase === "spinner" && Boolean(launchPreview);
 
   async function loadMore() {
     try {
@@ -106,9 +209,23 @@ export function DomainCard({
 
   return (
     <div className="w-full max-w-2xl">
-      <div className="flex max-h-[min(420px,42vh)] w-full flex-col overflow-hidden rounded-2xl border border-zinc-300 bg-zinc-50 shadow-lg shadow-zinc-950/10">
-        {launched && published ? (
-          <LaunchStatusPanel published={published} />
+      <div
+        className={cn(
+          "flex max-h-[min(420px,42vh)] w-full flex-col overflow-hidden rounded-2xl border border-zinc-300 bg-zinc-50 shadow-lg shadow-zinc-950/10",
+          (showLaunchSpinner || showLaunchStatus) && "min-h-[300px]",
+        )}
+      >
+        {showLaunchSpinner ? (
+          <LaunchSpinnerPanel
+            domainFqdn={launchPreview?.domainFqdn ?? selectedDomain ?? ""}
+          />
+        ) : showLaunchStatus ? (
+          <LaunchStatusPanel
+            domainFqdn={published?.domainFqdn ?? launchPreview?.domainFqdn ?? ""}
+            hostedUrl={published?.hostedUrl ?? null}
+            siteId={published?.siteId ?? null}
+            launching={Boolean(launching && !published)}
+          />
         ) : (
           <>
             <div className="grid min-h-0 flex-1 grid-cols-1 gap-0 overflow-hidden md:grid-cols-2">

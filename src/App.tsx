@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { BrandPreview } from "@/components/BrandPreview";
-import { DomainCard } from "@/components/DomainCard";
+import { DomainCard, type LaunchUiPhase } from "@/components/DomainCard";
 import { PromptBar } from "@/components/PromptBar";
 import { PromptPanel, type PromptMode } from "@/components/PromptPanel";
 import { SummaryLines } from "@/components/SummaryLines";
@@ -27,6 +27,8 @@ const domainCardProps = (
   setConfirmed: (confirmed: boolean) => void,
   handleLaunch: () => void,
   launching: boolean,
+  launchUiPhase: LaunchUiPhase,
+  launchPreview: { domainFqdn: string } | null,
   brandName: string,
   hasWebsite: boolean,
   published: (PublishedSite & { siteId: string }) | null,
@@ -39,6 +41,8 @@ const domainCardProps = (
   onConfirmChange: setConfirmed,
   onLaunch: handleLaunch,
   launching,
+  launchUiPhase,
+  launchPreview,
   brandName,
   hasWebsite,
   published,
@@ -54,7 +58,18 @@ export default function App() {
   const [selectedDomain, setSelectedDomain] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState(false);
   const [launching, setLaunching] = useState(false);
+  const [launchUiPhase, setLaunchUiPhase] = useState<LaunchUiPhase>("idle");
+  const [launchPreview, setLaunchPreview] = useState<{ domainFqdn: string } | null>(null);
+  const [domainCardOpen, setDomainCardOpen] = useState(false);
   const [published, setPublished] = useState<(PublishedSite & { siteId: string }) | null>(null);
+
+  const LAUNCH_SPINNER_MS = 650;
+
+  function launchSpinnerDelay() {
+    return new Promise<void>((resolve) => {
+      window.setTimeout(resolve, LAUNCH_SPINNER_MS);
+    });
+  }
 
   useEffect(() => {
     saveDraft(draft);
@@ -69,7 +84,20 @@ export default function App() {
   }, [draft.pages.length, draft.prompt, draft.brandKit.name]);
 
   function handlePromptModeChange(mode: PromptMode) {
-    setPromptMode(mode);
+    if (mode === "domain") {
+      if (promptMode === "domain") {
+        if (!launching) {
+          setDomainCardOpen((open) => !open);
+        }
+      } else {
+        setPromptMode("domain");
+        setDomainCardOpen(true);
+      }
+      return;
+    }
+
+    setPromptMode("site");
+    setDomainCardOpen(false);
   }
 
   async function handlePromptSubmit() {
@@ -121,17 +149,36 @@ export default function App() {
   async function handleLaunch() {
     if (!selectedDomain || !confirmed || launching || !hasSite(draft)) return;
     setLaunching(true);
+    setLaunchUiPhase("spinner");
+    setLaunchPreview({ domainFqdn: selectedDomain });
+    setPromptMode("domain");
+    setDomainCardOpen(true);
+    setDraft((current) =>
+      mergeDraft(current, {
+        summary: ["Your brand is launching.", `Domain: ${selectedDomain}`],
+        status: "ready",
+      }),
+    );
+
+    const publishPromise = safePublish({
+      draft: { pages: draft.pages, brandKit: draft.brandKit },
+      domainFqdn: selectedDomain,
+    });
+
     try {
-      const result = await safePublish({
-        draft: { pages: draft.pages, brandKit: draft.brandKit },
-        domainFqdn: selectedDomain,
-      });
+      await launchSpinnerDelay();
+      setLaunchUiPhase("status");
+
+      const result = await publishPromise;
       setPublished(result);
       setPhase("done");
-      setPromptMode("domain");
+      setLaunchPreview(null);
+    } catch {
+      setLaunchPreview(null);
+      setLaunchUiPhase("idle");
       setDraft((current) =>
         mergeDraft(current, {
-          summary: ["Your brand is launching.", `Domain: ${selectedDomain}`],
+          summary: ["Launch failed — try again in a moment.", `Domain: ${selectedDomain}`],
           status: "ready",
         }),
       );
@@ -141,7 +188,7 @@ export default function App() {
   }
 
   const launched = phase === "done" && published;
-  const showDomainCard = Boolean(launched || promptMode === "domain");
+  const domainCardVisible = domainCardOpen && (promptMode === "domain" || launching || launched);
 
   const cardProps = domainCardProps(
     domains,
@@ -152,6 +199,8 @@ export default function App() {
     setConfirmed,
     handleLaunch,
     launching,
+    launchUiPhase,
+    launchPreview,
     draft.brandKit.name,
     hasSite(draft),
     published,
@@ -180,13 +229,13 @@ export default function App() {
           <div className="app-shell flex h-full min-h-0 flex-col pt-3 pb-0">
             <div className="relative min-h-0 flex-1">
               <BrandPreview brandKit={draft.brandKit} pages={draft.pages} />
-              {showDomainCard ? (
-                <div className="pointer-events-none absolute bottom-0 left-0 z-30 w-full max-w-2xl">
-                  <div className="pointer-events-auto">
-                    <DomainCard {...cardProps} />
-                  </div>
-                </div>
-              ) : null}
+              <div
+                className={`domain-card-slide absolute bottom-0 left-0 z-30 w-full max-w-2xl ${
+                  domainCardVisible ? "domain-card-slide-open" : "domain-card-slide-closed"
+                }`}
+              >
+                <DomainCard {...cardProps} />
+              </div>
             </div>
           </div>
         </main>
@@ -197,7 +246,9 @@ export default function App() {
           <PromptPanel
             mode={promptMode}
             onModeChange={handlePromptModeChange}
-            disabled={Boolean(launched) || launching}
+            domainCardOpen={domainCardOpen}
+            siteTabDisabled={Boolean(launched) || launching}
+            promptDisabled={Boolean(launched) || launching}
             summary={<SummaryLines lines={draft.summary} />}
           >
             <PromptBar

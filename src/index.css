@@ -126,3 +126,69 @@ body {
   line-height: 1.15;
   color: #27272a;
 }
+
+@keyframes launch-step-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.launch-step-active {
+  animation: launch-step-pulse 1.6s ease-in-out infinite;
+}
+
+.launch-step-done {
+  opacity: 1;
+}
+
+.domain-card-slide {
+  transition:
+    transform 320ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 240ms ease;
+}
+
+.domain-card-slide-open {
+  transform: translateY(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.domain-card-slide-closed {
+  transform: translateY(calc(100% + 0.75rem));
+  opacity: 0;
+  pointer-events: none;
+}
+
+.launch-spinner-enter {
+  animation: launch-spinner-in 240ms ease-out;
+}
+
+@keyframes launch-spinner-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.launch-status-enter {
+  animation: launch-status-in 280ms ease-out;
+}
+
+@keyframes launch-status-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

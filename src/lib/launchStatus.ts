@@ -3,9 +3,12 @@ import { apiSiteStatus } from "./api";
 import type { PublishedSite } from "./types";
 
 export function useLaunchStatus(siteId: string | null) {
-  const [status, setStatus] = useState<Pick<PublishedSite, "hostingStatus" | "domainStatus">>({
+  const [status, setStatus] = useState<
+    Pick<PublishedSite, "hostingStatus" | "domainStatus"> & { hostedUrl: string | null }
+  >({
     hostingStatus: "pending",
     domainStatus: "pending",
+    hostedUrl: null,
   });
   const attemptsRef = useRef(0);
 
@@ -20,7 +23,11 @@ export function useLaunchStatus(siteId: string | null) {
       try {
         const data = await apiSiteStatus(siteId);
         if (cancelled) return;
-        setStatus({ hostingStatus: data.hosting, domainStatus: data.domain });
+        setStatus({
+          hostingStatus: data.hosting,
+          domainStatus: data.domain,
+          hostedUrl: data.hostedUrl ?? null,
+        });
         if (data.hosting === "live" && data.domain === "live") return;
       } catch {
         if (cancelled) return;
