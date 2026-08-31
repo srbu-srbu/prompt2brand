@@ -11,7 +11,7 @@ import {
 } from "@/lib/launchSteps";
 import { ConflictHighlight } from "@/components/ConflictHighlight";
 import { apiDomainConflicts, apiDomainSuggestMore } from "@/lib/api";
-import type { BrandConflict, DomainSuggestion, PublishedSite } from "@/lib/types";
+import type { BrandConflict, DomainSuggestion, PublishedSite, SummaryLines } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { conflictKeyword } from "../../shared/conflictMatch";
 
@@ -33,6 +33,10 @@ type DomainCardProps = {
   launchUiPhase?: LaunchUiPhase;
   launchPreview?: LaunchPreview | null;
   brandName: string;
+  domainPrompt?: string;
+  brandTagline?: string;
+  pageTitles?: string[];
+  onMoreSummary?: (summary: SummaryLines) => void;
   hasWebsite?: boolean;
   published?: (PublishedSite & { siteId: string }) | null;
 };
@@ -219,11 +223,17 @@ export function DomainCard({
   launchUiPhase = "idle",
   launchPreview,
   brandName,
+  domainPrompt,
+  brandTagline,
+  pageTitles,
+  onMoreSummary,
   hasWebsite = false,
   published,
 }: DomainCardProps) {
   const [conflicts, setConflicts] = useState<BrandConflict[]>([]);
   const [conflictsLoading, setConflictsLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [moreMessage, setMoreMessage] = useState<string | null>(null);
   const showLaunchStatus =
     Boolean(published) || (launchUiPhase === "status" && Boolean(launchPreview));
   const showLaunchSpinner = launchUiPhase === "spinner" && Boolean(launchPreview);
@@ -256,14 +266,26 @@ export function DomainCard({
   }, [selectedDomain, brandName]);
 
   async function loadMore() {
+    setLoadingMore(true);
+    setMoreMessage(null);
     try {
-      const data = await apiDomainSuggestMore(
-        domains.map((d) => d.fqdn),
+      const data = await apiDomainSuggestMore({
+        exclude: domains.map((d) => d.fqdn),
+        prompt: domainPrompt,
         brandName,
-      );
+        tagline: brandTagline,
+        pageTitles,
+      });
+      if (data.domains.length === 0) {
+        setMoreMessage("No additional domains found — try a domain prompt with new keywords.");
+        return;
+      }
       onDomainsChange([...domains, ...data.domains]);
+      onMoreSummary?.(data.summary);
     } catch {
-      // No fallback suggestions when the API is unavailable.
+      setMoreMessage("More suggestions failed — try again in a moment.");
+    } finally {
+      setLoadingMore(false);
     }
   }
 
@@ -318,9 +340,20 @@ export function DomainCard({
                   </p>
                 ) : null}
                 {domains.length > 0 ? (
-                  <Button variant="outline" size="sm" className="mt-2 bg-white" onClick={loadMore}>
-                    More suggestions
-                  </Button>
+                  <div className="mt-2 space-y-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="bg-white"
+                      onClick={loadMore}
+                      disabled={loadingMore}
+                    >
+                      {loadingMore ? "Searching…" : "More suggestions"}
+                    </Button>
+                    {moreMessage ? (
+                      <p className="text-xs text-zinc-500">{moreMessage}</p>
+                    ) : null}
+                  </div>
                 ) : null}
               </section>
 

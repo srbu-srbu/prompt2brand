@@ -29,11 +29,19 @@ export async function apiGenerate(
   }>;
 }
 
-export async function apiDomainSuggest(prompt: string, brandName?: string) {
+export async function apiDomainSuggest(
+  prompt: string,
+  options?: { brandName?: string; tagline?: string; pageTitles?: string[] },
+) {
   const res = await fetch("/api/domains/suggest", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt, brandName }),
+    body: JSON.stringify({
+      prompt,
+      brandName: options?.brandName,
+      tagline: options?.tagline,
+      pageTitles: options?.pageTitles,
+    }),
   });
   if (!res.ok) throw new Error("Domain suggest failed");
   return res.json() as Promise<{
@@ -42,14 +50,20 @@ export async function apiDomainSuggest(prompt: string, brandName?: string) {
   }>;
 }
 
-export async function apiDomainSuggestMore(exclude: string[], keyword?: string) {
+export async function apiDomainSuggestMore(input: {
+  exclude: string[];
+  prompt?: string;
+  brandName?: string;
+  tagline?: string;
+  pageTitles?: string[];
+}) {
   const res = await fetch("/api/domains/suggest/more", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ exclude, keyword }),
+    body: JSON.stringify(input),
   });
   if (!res.ok) throw new Error("More suggestions failed");
-  return res.json() as Promise<{ domains: DomainSuggestion[] }>;
+  return res.json() as Promise<{ domains: DomainSuggestion[]; summary: SummaryLines }>;
 }
 
 export async function apiPublish(payload: {
@@ -160,9 +174,12 @@ export async function safeGenerate(
   }
 }
 
-export async function safeDomainSuggest(prompt: string, brandName?: string) {
+export async function safeDomainSuggest(
+  prompt: string,
+  options?: { brandName?: string; tagline?: string; pageTitles?: string[] },
+) {
   try {
-    return await apiDomainSuggest(prompt, brandName);
+    return await apiDomainSuggest(prompt, options);
   } catch {
     return mockDomainSuggest(prompt);
   }

@@ -30,6 +30,10 @@ const domainCardProps = (
   launchUiPhase: LaunchUiPhase,
   launchPreview: { domainFqdn: string } | null,
   brandName: string,
+  domainPrompt: string,
+  brandTagline: string,
+  pageTitles: string[],
+  onMoreSummary: (summary: Draft["summary"]) => void,
   hasWebsite: boolean,
   published: (PublishedSite & { siteId: string }) | null,
 ) => ({
@@ -44,6 +48,10 @@ const domainCardProps = (
   launchUiPhase,
   launchPreview,
   brandName,
+  domainPrompt,
+  brandTagline,
+  pageTitles,
+  onMoreSummary,
   hasWebsite,
   published,
 });
@@ -78,10 +86,15 @@ export default function App() {
   useEffect(() => {
     if (!hasSite(draft)) return;
     const keyword = draft.prompt || draft.brandKit.name || "brand";
-    void safeDomainSuggest(keyword, draft.brandKit.name).then((result) => {
+    const context = {
+      brandName: draft.brandKit.name,
+      tagline: draft.brandKit.tagline,
+      pageTitles: draft.pages.map((page) => page.title),
+    };
+    void safeDomainSuggest(keyword, context).then((result) => {
       setDomains((current) => (current.length > 0 ? current : result.domains));
     });
-  }, [draft.pages.length, draft.prompt, draft.brandKit.name]);
+  }, [draft.pages.length, draft.prompt, draft.brandKit.name, draft.brandKit.tagline]);
 
   function handlePromptModeChange(mode: PromptMode) {
     if (mode === "domain") {
@@ -108,8 +121,14 @@ export default function App() {
     setPromptInput("");
 
     try {
+      const domainContext = {
+        brandName: draft.brandKit.name,
+        tagline: draft.brandKit.tagline,
+        pageTitles: draft.pages.map((page) => page.title),
+      };
+
       if (promptMode === "domain") {
-        const result = await safeDomainSuggest(prompt, draft.brandKit.name);
+        const result = await safeDomainSuggest(prompt, domainContext);
         setDomains(result.domains);
         setDraft((current) =>
           mergeDraft(current, {
@@ -133,7 +152,11 @@ export default function App() {
           }),
         );
         if (domains.length === 0 || rebrand) {
-          const domainResult = await safeDomainSuggest(prompt, result.brandKit.name);
+          const domainResult = await safeDomainSuggest(prompt, {
+            brandName: result.brandKit.name,
+            tagline: result.brandKit.tagline,
+            pageTitles: result.pages.map((page) => page.title),
+          });
           setDomains(domainResult.domains);
           if (rebrand) {
             setSelectedDomain(null);
@@ -202,6 +225,12 @@ export default function App() {
     launchUiPhase,
     launchPreview,
     draft.brandKit.name,
+    draft.prompt,
+    draft.brandKit.tagline,
+    draft.pages.map((page) => page.title),
+    (summary) => {
+      setDraft((current) => mergeDraft(current, { summary, status: "ready" }));
+    },
     hasSite(draft),
     published,
   );

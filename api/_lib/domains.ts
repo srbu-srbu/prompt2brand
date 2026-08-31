@@ -1,5 +1,9 @@
 import type { DomainSuggestion } from "./types";
-import { brainstormDomainKeywords } from "./domainBrainstorm";
+import {
+  brainstormDomainKeywords,
+  sanitizeStem,
+  type DomainBrainstormInput,
+} from "./domainBrainstorm";
 import { hasNamecomConfig, searchDomains, type NamecomSearchResult } from "./namecom";
 
 const STOP_WORDS = new Set([
@@ -27,11 +31,11 @@ const STOP_WORDS = new Set([
   "suffix",
 ]);
 
-const MORE_TLD_SETS = [
-  ["io", "co", "net"],
-  ["org", "app", "dev"],
-  ["shop", "store", "online"],
-];
+type DomainContext = {
+  brandName?: string;
+  tagline?: string;
+  pageTitles?: string[];
+};
 
 function formatPriceLabel(result: NamecomSearchResult): string {
   if (result.purchasePrice != null) {
@@ -68,16 +72,6 @@ export function keywordFromPrompt(prompt: string): string {
   return fallback || "brand";
 }
 
-export function keywordForMore(exclude: string[], keyword?: string): string {
-  const explicit = keyword?.trim();
-  if (explicit) return keywordFromPrompt(explicit);
-
-  const stem = exclude[0]?.split(".")[0];
-  if (stem) return stem;
-
-  return "brand";
-}
-
 function dedupeDomains(domains: DomainSuggestion[]): DomainSuggestion[] {
   const seen = new Set<string>();
   const output: DomainSuggestion[] = [];
@@ -92,36 +86,69 @@ function dedupeDomains(domains: DomainSuggestion[]): DomainSuggestion[] {
   return output;
 }
 
+async function searchForStems(input: {
+  stems: string[];
+  preferredTlds: string[];
+  exclude?: Set<string>;
+  limit: number;
+}): Promise<DomainSuggestion[]> {
+  const batches = await Promise.all(
+    input.stems.map((stem) =>
+      searchDomains({
+        keyword: stem,
+        tldFilter: input.preferredTlds,
+      }),
+    ),
+  );
+
+  return dedupeDomains(
+    batches
+      .flat()
+      .map(toSuggestion)
+      .filter((domain): domain is DomainSuggestion => domain !== null)
+      .filter((domain) => !input.exclude?.has(domain.fqdn.toLowerCase())),
+  ).slice(0, input.limit);
+}
+
+function buildBrainstormInput(
+  prompt: string,
+  options: DomainContext & { mode?: DomainBrainstormInput["mode"]; excludeFqdns?: string[] },
+): DomainBrainstormInput {
+  return {
+    prompt,
+    brandName: options.brandName,
+    tagline: options.tagline,
+    pageTitles: options.pageTitles,
+    mode: options.mode,
+    excludeFqdns: options.excludeFqdns,
+  };
+}
+
 export async function suggestDomainsFromPrompt(
   prompt: string,
-  options?: { brandName?: string },
+  options?: DomainContext,
 ): Promise<{
   domains: DomainSuggestion[];
   summary: [string, string, string];
   source: "namecom" | "mock";
 }> {
-  const brainstorm = await brainstormDomainKeywords({
-    prompt,
-    brandName: options?.brandName,
-  });
+  const brainstorm = await brainstormDomainKeywords(
+    buildBrainstormInput(prompt, { ...options, mode: "initial" }),
+  );
 
   if (!hasNamecomConfig()) {
     return { domains: [], summary: brainstorm.summary, source: "mock" };
   }
 
   try {
-    const keywords =
-      brainstorm.keywords.length > 0
-        ? brainstorm.keywords
-        : [keywordFromPrompt(prompt)];
+    const stems =
+      brainstorm.stems.length > 0 ? brainstorm.stems : [keywordFromPrompt(prompt)];
 
-    const batches = await Promise.all(keywords.map((keyword) => searchDomains({ keyword })));
-    const domains = dedupeDomains(
-      batches
-        .flat()
-        .map(toSuggestion)
-        .filter((domain): domain is DomainSuggestion => domain !== null),
-    ).slice(0, 8);
+    const domains = await searchForStems({
+      stems,
+      preferredTlds: brainstorm.preferredTlds,
+      limit: 8,
+    });
 
     if (domains.length === 0) {
       return { domains: [], summary: brainstorm.summary, source: "mock" };
@@ -136,28 +163,50 @@ export async function suggestDomainsFromPrompt(
 
 export async function suggestMoreDomains(input: {
   exclude: string[];
-  keyword?: string;
-}): Promise<{ domains: DomainSuggestion[]; source: "namecom" | "mock" }> {
+  prompt?: string;
+  brandName?: string;
+  tagline?: string;
+  pageTitles?: string[];
+}): Promise<{
+  domains: DomainSuggestion[];
+  summary: [string, string, string];
+  source: "namecom" | "mock";
+}> {
+  const prompt =
+    input.prompt?.trim() ||
+    input.brandName?.trim() ||
+    sanitizeStem(input.exclude[0]?.split(".")[0] ?? "") ||
+    "brand";
+
+  const brainstorm = await brainstormDomainKeywords(
+    buildBrainstormInput(prompt, {
+      brandName: input.brandName,
+      tagline: input.tagline,
+      pageTitles: input.pageTitles,
+      mode: "more",
+      excludeFqdns: input.exclude,
+    }),
+  );
+
   if (!hasNamecomConfig()) {
-    return { domains: [], source: "mock" };
+    return { domains: [], summary: brainstorm.summary, source: "mock" };
   }
 
   try {
-    const keyword = keywordForMore(input.exclude, input.keyword);
-    const tldFilter = MORE_TLD_SETS[input.exclude.length % MORE_TLD_SETS.length];
-    const results = await searchDomains({ keyword, tldFilter });
     const exclude = new Set(input.exclude.map((fqdn) => fqdn.toLowerCase()));
+    const stems =
+      brainstorm.stems.length > 0 ? brainstorm.stems : [keywordFromPrompt(prompt)];
 
-    const domains = dedupeDomains(
-      results
-        .map(toSuggestion)
-        .filter((domain): domain is DomainSuggestion => domain !== null)
-        .filter((domain) => !exclude.has(domain.fqdn.toLowerCase())),
-    ).slice(0, 5);
+    const domains = await searchForStems({
+      stems,
+      preferredTlds: brainstorm.preferredTlds,
+      exclude,
+      limit: 5,
+    });
 
-    return { domains, source: "namecom" };
+    return { domains, summary: brainstorm.summary, source: "namecom" };
   } catch (error) {
     console.error("name.com suggest-more failed", error);
-    return { domains: [], source: "mock" };
+    return { domains: [], summary: brainstorm.summary, source: "mock" };
   }
 }
