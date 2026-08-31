@@ -1,10 +1,11 @@
 # prompt2brand - Product Specification
 
-> **Version:** 1.5 (draft)
-> **Last updated:** 2026-08-23
-> **Status:** Pre-build
-> **Team:** Solo - deadline Sep 3, 2026
-> **Build mode:** Hackathon proof-of-concept
+> **Version:** 2.0 (as-built)
+> **Last updated:** 2026-08-30
+> **Status:** Built — hackathon PoC ready for Devpost
+> **Team:** Solo — deadline Sep 3, 2026
+> **Live demo:** [prompt2brand.vercel.app](https://prompt2brand.vercel.app)
+> **Repo:** [github.com/srbu-srbu/prompt2brand](https://github.com/srbu-srbu/prompt2brand)
 
 ---
 
@@ -12,13 +13,13 @@
 
 Built for **[DevNetwork [API + Cloud + AI] Hackathon 2026](https://api-cloud-ai-hackathon-2026.devpost.com/)** on Devpost.
 
-**Hard rule:** Hackathon references - this spec and Devpost submission only. Never in product UI or demo narration.
+**Hard rule:** Hackathon references belong in this spec and Devpost only. Never in product UI or demo narration.
 
 ---
 
 ## What the user is buying (product vision)
 
-Bundle - not domain-only:
+Bundle — not domain-only:
 
 | Included | Detail |
 |----------|--------|
@@ -31,161 +32,203 @@ Real product: subscribe once, then unlimited prompt edits. Billing not built in 
 
 ### Hackathon PoC vs demo narrative
 
-| Built in PoC | Not built - explain in demo video / Devpost only |
-|--------------|---------------------------------------------------|
-| First launch: prompt -> preview -> domain card (prompt stays open) -> confirm site + domain -> Launch brand | Return visit after subscribe |
-| Prompt during domain pick (domain cues + header/site tweaks) | Post-subscribe unlimited edit flow |
-| Publish + register on Launch brand; done screen | Auth, subscription billing, edit history UI |
+| Built in PoC | Not built — explain in demo video / Devpost only |
+|--------------|--------------------------------------------------|
+| First launch: prompt → preview → domain card → confirm site + domain → Launch brand | Return visit after subscribe |
+| Prompt during domain pick (site tab + domain tab) | Post-subscribe unlimited edit flow |
+| Publish + register on Launch brand; in-card status panel | Auth, subscription billing, edit history UI |
 | DB stores HTML (groundwork for future redeploy) | Redeploy on subsequent visits |
 
-**Demo narration:** "After you subscribe, you come back anytime, prompt changes, we redeploy - unlimited edits. This demo shows the first launch."
+**Demo narration:** *"After you subscribe, you come back anytime, prompt changes, we redeploy — unlimited edits. This demo shows the first launch."*
 
-Card copy ("prompt to edit anytime") = product promise. PoC demo **ends at done screen**. Do not build post-subscribe editing in the app.
+PoC demo **ends at the launch status panel** (links + step indicators). Do not build post-subscribe editing in the app.
 
 ---
 
 ## Product limits (hosted brand site)
 
-Up to **5 self-contained HTML pages** (Pico CSS + inline CSS/JS). No backend on hosted site.
+Up to **5 self-contained HTML pages** (inline CSS/JS in fragments; wrapped at publish). No backend on hosted site.
 
-Allowed: HTML with inline CSS/JS, Pico CSS embedded, external image URLs, internal page links.
+Allowed: HTML fragments with inline CSS/JS, external image URLs, internal page links (`/about`, not `#hash`).
 Not allowed on hosted site: serverless functions, database, form POST to APIs.
-
-Example pages (max 5): home (required), about, privacy, terms, gallery, contact.
 
 ---
 
-## Page format
+## Page format and internal links
 
-Each page is one self-contained `.html` file: Pico CSS minified in `<style>`, brand CSS variables, semantic body HTML, optional inline `<script>`. No separate .css or .js files.
+Each page is an HTML **fragment** in draft (`bodyHtml`). At publish, `wrapPage()` builds a full document for Vercel deploy; Neon stores the same wrapped HTML.
 
-Generation: pinned Pico string in repo (`lib/pico.min.css.ts`), AI generates body + brand vars, `wrapPage()` builds full document for preview and publish.
+**Preview vs publish link handling** (`shared/internalLinks.ts`):
+
+| Context | Nav links |
+|---------|-----------|
+| **Preview iframe** | LLM may emit `#about` hash links → rewritten to `#p2b:slug` at render time |
+| **Published site** | `preparePublishedHtml()` rewrites hash/slug links to clean paths `/about` before deploy |
+
+This avoids broken multi-page nav when the LLM generates hash links but the deployed site uses path-based routing.
 
 ---
 
 ## Hosting and storage (dual-write)
 
-On **Launch brand** (combined website + domain confirm, right before mock payment):
-1. **Always** save HTML to **Neon Postgres** (Vercel Marketplace, Free plan)
-2. **Kick off** Vercel Deploy API (non-blocking)
-3. **Register** domain via name.com sandbox + DNS
+On **Launch brand** (website + domain confirmed):
 
-Until Launch brand, everything stays in **client draft** (React state + localStorage). No backend write while user is still prompting or picking a domain.
+1. **Save** wrapped HTML to **Neon Postgres**
+2. **Kick off** Vercel Deploy API (non-blocking in handler; status polled client-side)
+3. **Register** domain via name.com + create `www` CNAME to Vercel hostname
 
-DB = source of truth for future edits/redeploy. Not exercised beyond first publish in PoC.
+Until Launch brand, everything stays in **client draft** (React state + `sessionStorage`). No backend write while prompting or picking a domain.
 
 ### Vercel Deploy API
 
-- `createDeployment` with inline base64 HTML files, `framework: null`
-- Returns deploymentId + URL immediately (do not block on READY in publish handler)
-- Requires `VERCEL_TOKEN` server-side
+- One static deployment per launch (`p2b-{siteId}.vercel.app`)
+- Inline base64 HTML files, `framework: null`
+- Requires `VERCEL_TOKEN` (+ optional `VERCEL_TEAM_ID`) server-side
+- `GET /api/sites/status/[siteId]` polls Vercel deployment state
 
 ### DB fallback serve
 
-`GET /api/sites/[siteId]/[[...path]]` serves HTML from DB if deploy fails or as backup.
+`GET /api/sites/[siteId]/[slug]` serves HTML from Neon if needed.
 
 ### Public URLs
 
-- Primary (deploy success): `https://p2b-{siteId}.vercel.app/`
-- Fallback: `https://prompt2brand.vercel.app/sites/{siteId}/about`
+- **Primary:** `https://p2b-{siteId}.vercel.app/`
+- **Fallback (app origin):** `https://prompt2brand.vercel.app/api/sites/{siteId}/home`
+- **Custom domain:** registered FQDN (sandbox or production per integration flag)
 
 ---
 
-## Non-blocking publish and register
+## Integration flag (`P2B_LIVE_INTEGRATIONS`)
 
-No server-side polling during main flow. Both run on **Launch brand** only.
+Controlled in `api/_lib/integrations.ts`:
 
-**Publish** (on Launch brand) - fast return: DB save, start deploy, return `{ siteId, hostedUrl, hostingStatus: 'pending' }`.
+| `P2B_LIVE_INTEGRATIONS` | name.com | SerpApi |
+|-------------------------|----------|---------|
+| `0` (default, demo-safe) | Sandbox (`api.dev.name.com`, `*-test` user) | Mock (all Clear) |
+| `1` | Production (`api.name.com`) | Live (if `SERPAPI_KEY` set) |
 
-**Register** (on Launch brand) - fast return: mock pay, name.com sandbox register + DNS, return `{ fqdn, domainStatus: 'pending' }`.
+Env var sets are dual-configured in `.env.example`:
+
+- `NAMECOM_SANDBOX_*` — used when flag = 0
+- `NAMECOM_PRODUCTION_*` — used when flag = 1
+
+**name.com billing:** Search and Check Availability are free API calls. **Create Domain** (on Launch) charges account credit or default payment method. With $0 balance and no card, registration returns `402 Payment Required`; hosting may still succeed.
+
+**SerpApi:** Free tier ~250 searches/month. Results cached 1 hour per domain (`v4:` cache key). Conflict matching uses domain stem (e.g. `miliojen` from `miliojen.org`) against title + snippet + URL; UI shows result URL and highlights matched tokens (`shared/conflictMatch.ts`).
 
 ---
 
-## Client status SDK (`lib/launchStatus.ts`)
+## Domain search pipeline
 
-On **done screen only**: `useLaunchStatus(siteId)` polls `GET /api/sites/{siteId}/status` every ~3s.
+LLM brainstorms **search stems** and **preferred TLDs**; name.com verifies availability. The LLM does **not** pick final domain names.
 
-Returns `hosting` and `domain` as `pending` | `live` | `failed`. Server checks Vercel deployment state and HTTP/DNS reachability.
+```
+User prompt (+ brand name, tagline, page titles)
+        ↓
+POST /api/domains/suggest  OR  /api/domains/suggest/more
+        ↓
+domainBrainstorm.ts  →  Gemini (Vercel AI Gateway)
+   returns: { stems: ["miliojen"], preferredTlds: ["dev", "ai"], summary }
+   fallback: domainPromptParse.ts (extract brand stem + TLDs from prompt — never whole sentence)
+        ↓
+name.com POST /core/v1/domains:search  (per stem, tldFilter = preferredTlds)
+        ↓
+Filter: purchasable, non-premium, purchaseType = registration
+        ↓
+Domain picker list
+```
+
+**Domain tab prompt** (e.g. *"Please provide .dev and .ai extensions for miliojen"*) replaces the suggestion list and clears domain selection.
+
+**More suggestions** calls LLM in `mode: "more"` with excluded FQDNs, then name.com search again. Route: `POST /api/domains/suggest/more`.
 
 ---
 
-## UI - build and domain phase (prompt always visible)
+## SerpApi conflict pipeline
 
-User keeps the **prompt box throughout** — including while the domain card is open. No early website lock-in.
+Separate from domain suggest — loaded when user **selects** a domain:
+
+```
+GET /api/domains/conflicts?fqdn=&brandName=
+        ↓
+serpapi.ts — site-scoped searches (web, instagram, linkedin, x, facebook)
+        ↓
+Match domain stem in title + snippet + URL (shared/conflictMatch.ts)
+        ↓
+UI: Conflict/Clear, clickable URL, highlighted match spans
+```
+
+---
+
+## UI — build and domain phase
+
+User keeps the **prompt panel throughout** build and domain selection.
 
 ### Layout
 
-- **2-line summary** above prompt (max 2 lines, factual - NOT chatbot/agent UI)
-- **Domain card overlay** on preview (once initial site exists; may open automatically or via affordance)
-- **Prompt box** always at bottom — never hidden until done screen
+- **Header:** product title + current brand name (when site exists)
+- **Preview canvas:** iframe preview of generated pages
+- **Domain card overlay:** bottom-left, fades in/out (not slide)
+- **Prompt panel:** fixed bottom — tabs + 3-line summary + input
 
-### Prompt behavior (two intents)
+### Prompt panel tabs
 
-| User prompt type | Effect |
-|------------------|--------|
-| **Site / brand** (e.g. "make header say PawFuel", "warmer colors") | Updates preview via `/api/generate` (header, copy, palette, pages) |
-| **Domain brainstorming** (e.g. "short playful name with paw", "try eco prefix") | Refreshes domain suggestions via `/api/domains/suggest` (name.com filter + SerpApi map) |
+| Tab | Mode | Effect |
+|-----|------|--------|
+| **Create / Edit website** | `site` | `/api/generate` — updates brand kit + pages |
+| **Choose your domain** | `domain` | Opens/toggles domain card; domain-tab submits go to `/api/domains/suggest` |
 
-2-line summary reflects latest action (site or domain), e.g. "Updated hero to PawFuel. / Searching domains with paw + eco."
+Clicking **Choose your domain** again toggles the card (chevron ▲/▼). Prompt submit is **on Enter/send**, not debounced.
+
+### Summary lines
+
+**3 lines** above the prompt (factual, not chatbot UI). Updated after generate, domain suggest, or More suggestions.
+
+Default empty state mentions tabs **above** the prompt.
 
 ### Domain card layout
 
-- Title: **Choose your domain** (card); final CTA remains **Launch your brand**
-- Subline: *Website editor + domain - prompt to edit anytime*
-- **50/50 columns** with equal visual weight:
-  - Left: **Powered by name.com** - available domains, click to select, **More suggestions**
-  - Right: **Powered by SerpApi** - brand conflicts for selected domain (web, Instagram, LinkedIn, X, Facebook)
-- Selecting domain on left updates right column
-- Domain list may load/refine async while user keeps prompting
-- **Collapse chevron** on card: hide card to review full preview; re-expand to continue domain pick
+- **50/50 columns** (stacked on mobile):
+  - Left — **Powered by name.com:** domain list, prices, **More suggestions**
+  - Right — **Powered by SerpApi:** async conflict check with spinner per domain select
+- Selecting a domain updates the conflict column
+- Footer: brand name · selected domain, combined confirm checkbox, **Launch brand**
 
-### Combined confirm (right before payment)
+### Combined confirm
 
-No separate early **Confirm website** step. User confirms **website + domain together** immediately before purchase:
+1. User selects a domain
+2. Checkbox: *I confirm this website and domain*
+3. **Launch brand** enabled when: site exists + domain selected + confirmed
+4. Footer: *Includes hosted website and domain registration · Sandbox - no charge*
 
-1. User selects a domain in the card
-2. Review row/checkbox: *I confirm this website and domain* (or equivalent inline confirm state)
-3. **Launch brand** button enabled only when: domain selected + confirm acknowledged
-4. **Launch brand** triggers: publish (DB + deploy) + mock payment + domain register + DNS
+No price displayed on domains (premium domains filtered out of suggestions).
 
-Muted under button: *Includes hosted website and domain registration*
-Optional PoC: *Sandbox - no charge*
+### Launch UX (in domain card)
 
----
+Replaces domain picker content after Launch:
 
-## Mock purchase (hackathon)
+1. **Spinner** (~650ms): "Launching your brand"
+2. **Status panel:** hosting row + domain row, each with:
+   - Status dot (pending / live / failed)
+   - Clickable URL
+   - 3 step lines (pulse while active, solid when done)
+3. Client polls `GET /api/sites/status/[siteId]` via `useLaunchStatus`
 
-No price displayed. Button: **Launch brand**. Enabled when domain selected **and** combined website+domain confirm is checked.
-
-User is buying editor + domain + hosting, not a bare domain.
-
----
-
-## UI - done screen
-
-Blank minimal page after Launch brand:
-- Clickable hosted URL + domain URL links
-- Two status indicators beside links (hosting + domain) via `useLaunchStatus`
-- No post-subscribe edit UI
+`DoneScreen.tsx` exists but is **not used** — status lives in the domain card.
 
 ---
 
-## User flow (PoC)
+## User flow (PoC, as-built)
 
 ```
-Prompt -> preview builds (localStorage draft)
-       -> domain card opens; prompt stays visible
-       -> user keeps prompting:
-            - site cues -> update header / pages / palette
-            - domain cues -> refresh name.com suggestions
-       -> optional: collapse card, review preview, re-expand
-       -> select domain; review SerpApi conflicts (right column)
-       -> confirm website + domain together
-       -> Launch brand -> publish + register (mock)
-       -> done screen: links + status indicators (client poll)
+Prompt (site tab) → preview builds (sessionStorage draft)
+                 → switch to domain tab → card opens
+                 → domain tab prompt OR More suggestions → name.com list refreshes
+                 → optional: site tab prompt to tweak copy/colors while card open
+                 → select domain → SerpApi conflicts load (right column)
+                 → confirm website + domain → Launch brand
+                 → spinner → status panel (poll until live/failed)
 ```
-
-Post-subscribe unlimited edits: demo narration only, not in app.
 
 ---
 
@@ -196,11 +239,40 @@ Post-subscribe unlimited edits: demo narration only, not in app.
 | App frontend | React 19 + Vite SPA on Vercel |
 | App styling | Tailwind CSS v4 + selective shadcn/ui |
 | App backend | Vercel Serverless Functions (`/api/*`) |
-| Hosted pages | Self-contained HTML + embedded Pico CSS |
-| HTML storage | **Neon Postgres** via Vercel Marketplace (Free plan) |
+| Hosted pages | Static HTML per page, one Vercel project per launch |
+| HTML storage | Neon Postgres via Vercel Marketplace |
 | Live hosting | Vercel Deploy API (primary) + DB serve (fallback) |
-| Draft | React state + localStorage |
-| External APIs | name.com sandbox, SerpApi, LLM |
+| Draft | React state + `sessionStorage` |
+| Site generation LLM | Vercel AI Gateway → `google/gemini-2.5-flash-lite` |
+| Domain brainstorm LLM | Same gateway/model |
+| Domains | name.com Core API (sandbox or production) |
+| Brand conflicts | SerpApi Google search (live or mock) |
+
+---
+
+## Key modules
+
+| Path | Role |
+|------|------|
+| `src/App.tsx` | Orchestration, tabs, launch flow |
+| `src/components/DomainCard.tsx` | Domain picker, conflicts, launch status |
+| `src/components/PromptPanel.tsx` | Tab bar with chevron toggle |
+| `src/lib/draft.ts` | sessionStorage draft persistence |
+| `src/lib/launchStatus.ts` | Status polling hook |
+| `src/lib/launchSteps.ts` | Step line text/phases for hosting + domain |
+| `src/lib/previewFrame.ts` | Preview iframe + `#p2b:` link rewrite |
+| `api/_lib/generateSite.ts` | LLM site generation |
+| `api/_lib/domainBrainstorm.ts` | LLM stems + preferredTlds |
+| `api/_lib/domainPromptParse.ts` | Script fallback stem/TLD extraction |
+| `api/_lib/domains.ts` | name.com search orchestration |
+| `api/_lib/namecom.ts` | name.com API client (dual env) |
+| `api/_lib/serpapi.ts` | SerpApi conflict checks + cache |
+| `api/_lib/integrations.ts` | `P2B_LIVE_INTEGRATIONS` flag |
+| `api/_lib/vercelDeploy.ts` | Deploy + `preparePublishedHtml` |
+| `api/sites/publish.ts` | Launch handler (DB + deploy + register) |
+| `shared/internalLinks.ts` | Preview vs publish link rewriting |
+| `shared/conflictMatch.ts` | SerpApi match + UI highlight ranges |
+| `shared/types.ts` | Shared TypeScript interfaces |
 
 ---
 
@@ -209,39 +281,35 @@ Post-subscribe unlimited edits: demo narration only, not in app.
 ```typescript
 interface Draft {
   prompt: string;
+  promptHistory: string[];   // last 5, sent to generate LLM
   brandKit: BrandKit;
   pages: PageDraft[];
-  status: 'idle' | 'generating' | 'ready' | 'publishing';
+  summary: [string, string, string];  // 3 lines
+  status: "idle" | "generating" | "ready" | "publishing";
 }
 
-interface PageDraft {
-  slug: string;
-  title: string;
-  bodyHtml: string;
+interface BrandConflict {
+  platform: "web" | "instagram" | "linkedin" | "x" | "facebook";
+  label: string;
+  found: boolean;
+  snippet?: string;
+  url?: string;   // SerpApi result link (e.g. facebook.com/JoeTheElectrician)
 }
 
 interface PublishedSite {
   siteId: string;
-  status: 'live' | 'fallback' | 'publishing';
   hostedUrl: string;
-  vercelDeploymentId?: string;
-  domainFqdn?: string;
-  hostingStatus: 'pending' | 'live' | 'failed';
-  domainStatus?: 'pending' | 'live' | 'failed';
+  domainFqdn: string;
+  hostingStatus: "pending" | "live" | "failed";
+  domainStatus: "pending" | "live" | "failed";
 }
 ```
 
-DB tables: `sites` (metadata), `site_pages` (slug, title, html).
+Client also tracks `latestDomainCue` (most recent domain-tab prompt) for More suggestions.
 
 ### Database (Neon)
 
-- Provision via [Vercel Marketplace → Neon](https://vercel.com/marketplace/neon); choose **Free** plan on Hobby Vercel account
-- Vercel injects connection env vars (e.g. `POSTGRES_URL`) into the project
-- Serverless access from `/api/*` via `@neondatabase/serverless` (or Drizzle + Neon driver)
-- No client-side DB access; writes only on **Launch brand** from publish handler
-
 ```sql
--- PoC schema (minimal)
 CREATE TABLE sites (
   site_id TEXT PRIMARY KEY,
   hosted_url TEXT NOT NULL,
@@ -261,107 +329,125 @@ CREATE TABLE site_pages (
 );
 ```
 
+Provision via [Vercel Marketplace → Neon](https://vercel.com/marketplace/neon) (Free plan). Vercel injects `POSTGRES_URL`.
+
 ---
 
-## API endpoints
+## API endpoints (as-built)
 
 | Method | Path | Purpose |
 |--------|------|---------|
-| POST | `/api/generate` | Site/brand prompt -> pages + 2-line summary; updates preview |
-| POST | `/api/domains/suggest` | Domain prompt -> available domains + SerpApi conflicts map |
-| POST | `/api/sites/publish` | On Launch brand: DB save + start deploy -> fast response |
-| POST | `/api/domains/suggest/more` | Next domain batch |
-| POST | `/api/domains/register` | On Launch brand: mock register + DNS |
-| GET | `/api/sites/[siteId]/status` | Hosting + domain status for client poll |
-| GET | `/api/sites/[siteId]/[[...path]]` | DB fallback HTML serve |
-| GET | `/api/health` | Deploy check |
+| POST | `/api/generate` | Site prompt → brandKit + pages + 3-line summary |
+| POST | `/api/domains/suggest` | Domain prompt → LLM brainstorm → name.com search |
+| POST | `/api/domains/suggest/more` | More domains (LLM `mode: more` + exclude list) |
+| GET | `/api/domains/conflicts` | SerpApi conflicts for selected FQDN |
+| POST | `/api/sites/publish` | Launch: DB save + Vercel deploy + name.com register + DNS |
+| GET | `/api/sites/status/[siteId]` | Hosting + domain status for client poll |
+| GET | `/api/sites/[siteId]/[slug]` | DB HTML serve |
+| GET | `/api/health` | Liveness |
+| GET | `/api/health/db` | Postgres connectivity |
+| GET | `/api/health/ai` | AI Gateway connectivity |
+
+**Removed / never built:** separate `POST /api/domains/register` (register is inside publish).
 
 ---
 
 ## AI constraints
 
-- Summary: max 2 lines, factual
-- Pages: max 5, Pico semantic HTML
-- Domains: only name.com-verified available names
+- Summary: **3 lines**, factual
+- Pages: max 5; LLM nudged toward `/slug` nav links (hash links rewritten at preview/publish)
+- Domains: only name.com-verified available names; premium filtered out
+- Domain stems: lowercase alphanumeric, never full instruction sentences
 
 ---
 
-## Success criteria
+## Success criteria (implementation)
 
-- [ ] Prompt visible during domain selection; site + domain prompt intents work
-- [ ] Domain card: equal sponsor columns, collapse/expand
-- [ ] Combined website+domain confirm before Launch brand; no price shown
-- [ ] Dual-write DB + Vercel deploy; fallback serve works
-- [ ] Done screen status poll
-- [ ] Demo video 2-4 min (mention unlimited future edits in narration)
+- [x] Prompt visible during domain selection; site + domain tab intents work
+- [x] Domain card: equal sponsor columns, tab toggle (fade in/out)
+- [x] Combined website+domain confirm before Launch brand; no price shown
+- [x] Dual-write DB + Vercel deploy; fallback serve works
+- [x] Launch status poll with step lines in domain card
+- [ ] Demo video 2–4 min (mention unlimited future edits in narration)
 
 ---
 
 ## Devpost submission checklist (internal)
 
-Submit sandbox-first. Optional: re-record with one real domain if time remains after Aug 28.
+Submit sandbox-first (`P2B_LIVE_INTEGRATIONS=0`). Use flag = 1 only for SerpApi/name.com evidence screenshots.
 
 ### Devpost page
 
 - [ ] Project name: **prompt2brand**
 - [ ] One-line pitch (editor + domain + hosting; prompt to build your brand)
-- [ ] Link to public GitHub repo with setup instructions
-- [ ] Link to live demo URL (Vercel)
-- [ ] Tag **name.com** and **SerpApi** sponsor challenges in submission text
-- [ ] 2-4 min demo video (YouTube/Vimeo embed)
-- [ ] Built during hackathon window (Aug 17 - Sep 3, 2026)
+- [ ] Link to public GitHub repo
+- [ ] Link to live demo URL
+- [ ] Tag **name.com** and **SerpApi** sponsor challenges
+- [ ] 2–4 min demo video (YouTube/Vimeo embed)
+- [ ] Built during hackathon window (Aug 17 – Sep 3, 2026)
 
-### Demo video script (keep user-facing; no hackathon mentions in app)
+### Demo video script
 
-1. Land on minimal prompt UI - explain product in voiceover (unlimited future edits after subscribe)
-2. Type prompt - preview builds; show 2-line summary (not chatbot UI)
-3. Domain card opens; prompt stays - type domain cues ("short name with paw") to refresh suggestions
-4. Optional: prompt to update site header to match chosen direction; highlight **Powered by name.com** | **Powered by SerpApi**
-5. Select domain - SerpApi conflicts update on right column
-6. Confirm website + domain; Launch brand (mock) - done screen with links
-7. Status indicators turn live (or explain sandbox propagation timing in voiceover)
+1. Land on minimal prompt UI — voiceover product vision (unlimited future edits after subscribe)
+2. Site tab prompt → preview builds; show **3-line summary**
+3. **Choose your domain** tab → card opens; domain cue (e.g. *".dev and .ai for miliojen"*) refreshes list
+4. Optional: site tab tweak; highlight **Powered by name.com** | **Powered by SerpApi**
+5. Select domain → conflicts load; show URL + highlight when conflict (e.g. Facebook slug match)
+6. Confirm + **Launch brand** → spinner → status panel with step lines
+7. Links turn live (or explain sandbox DNS timing in voiceover)
 
-### name.com evidence (sandbox - attach to Devpost or `docs/demo-evidence/`)
+### name.com evidence
 
-Redact API keys, tokens, account IDs, and personal contact info before commit or upload.
+Redact keys/tokens before upload.
 
-- [ ] Screenshot or sanitized JSON: **availability check** (only available domains shown)
-- [ ] Screenshot or sanitized JSON: **sandbox registration** success response
-- [ ] Screenshot or sanitized JSON: **DNS configuration** (records pointing at hostedUrl)
-- [ ] One sentence per screenshot in Devpost: *"Registered and DNS configured via name.com API (sandbox)."*
+- [ ] Screenshot/JSON: domain **search** with available results
+- [ ] Screenshot/JSON: sandbox **registration** success
+- [ ] Screenshot/JSON: **DNS** CNAME record
+- [ ] Caption: *"Registered and DNS configured via name.com API (sandbox)."*
 
 ### SerpApi evidence
 
-- [ ] Screenshot of brand-risk column with platform labels (web, Instagram, LinkedIn, X, Facebook)
-- [ ] One sentence: *"Live web data via SerpApi for brand conflict checks."*
+- [ ] Screenshot: conflict column with platform labels (set `P2B_LIVE_INTEGRATIONS=1`)
+- [ ] Caption: *"Live web data via SerpApi for brand conflict checks."*
 
 ### Repo
 
-- [ ] README: local dev setup, env vars list (no secret values)
-- [ ] `.env.example` with placeholder keys (`POSTGRES_URL`, LLM, name.com, SerpApi, `VERCEL_TOKEN`)
-- [ ] `docs/demo-evidence/` for redacted API logs (optional but recommended for name.com judges)
+- [x] README: quick start + pointer to SPEC
+- [x] `.env.example` with all keys documented
+- [ ] `docs/demo-evidence/` for redacted API logs (optional)
 
-### Optional stretch (only if sandbox submission is done early)
+### Optional stretch
 
-- [ ] Add name.com account credits; switch to production credentials via env var
-- [ ] Register **one** domain; wait until DNS resolves before re-recording
-- [ ] Keep sandbox video as backup if production registration fails mid-shoot
-- [ ] Update Devpost video only if real domain is live and clickable in recording
+- [ ] name.com production credits; one real domain registration
+- [ ] Disable Vercel Deployment Protection on `p2b-*.vercel.app` before recording
+- [ ] Re-record video if real domain goes live
 
-### Pre-submit smoke test (run once, same day as video)
+### Pre-submit smoke test
 
-- [ ] Prompt -> preview -> domain card (prompt open) -> confirm site+domain -> launch -> done screen
-- [ ] Fallback URL works if Vercel deploy is still pending
-- [ ] name.com sandbox register + DNS logged server-side
-- [ ] SerpApi returns results for selected domain
-
----
-
-## Open questions
-
-1. Preview trigger: debounced pause vs submit
-2. LLM provider
+- [ ] Prompt → preview → domain tab → select domain → conflicts → launch → status live
+- [ ] Fallback URL works if Vercel deploy pending
+- [ ] name.com sandbox register + DNS in server logs
+- [ ] SerpApi returns results (flag = 1)
 
 ---
 
-*PoC = first launch only. Unlimited post-subscribe edits = product vision, explained in demo - not built.*
+## Known limitations (PoC)
+
+- No auth, billing, or return-visit editing
+- `safePublish` client fallback on API failure returns mock pending site (edge case)
+- SerpApi 1-hour cache may show stale conflicts during rapid retesting
+- Vercel Deployment Protection may block anonymous access to `p2b-*.vercel.app` URLs
+- LLM gateway rate limits → generate may fall back to preserving current draft
+
+---
+
+## Resolved decisions (was open questions)
+
+1. **Preview trigger:** submit on Enter/send (not debounced pause)
+2. **LLM provider:** Vercel AI Gateway + `google/gemini-2.5-flash-lite`
+3. **Domain conflicts:** async on select, not bundled in suggest response
+4. **Launch UI:** in-card status panel, not separate done page
+
+---
+
+*PoC = first launch only. Unlimited post-subscribe edits = product vision, explained in demo — not built.*
