@@ -25,4 +25,7 @@ Thumbs.db
 # TypeScript
 *.tsbuildinfo
 
+# Local one-off patch scripts (not part of the app)
+scripts/
+
 .vercel
