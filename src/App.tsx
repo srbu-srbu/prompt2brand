@@ -155,7 +155,7 @@ export default function App() {
     setDomainCardOpen(true);
     setDraft((current) =>
       mergeDraft(current, {
-        summary: ["Your brand is launching.", `Domain: ${selectedDomain}`],
+        summary: ["Your brand is launching.", `Domain: ${selectedDomain}`, "Links will appear below as hosting finishes."],
         status: "ready",
       }),
     );
@@ -178,7 +178,7 @@ export default function App() {
       setLaunchUiPhase("idle");
       setDraft((current) =>
         mergeDraft(current, {
-          summary: ["Launch failed — try again in a moment.", `Domain: ${selectedDomain}`],
+          summary: ["Launch failed — try again in a moment.", `Domain: ${selectedDomain}`, "Your preview is unchanged."],
           status: "ready",
         }),
       );
@@ -230,8 +230,8 @@ export default function App() {
             <div className="relative min-h-0 flex-1">
               <BrandPreview brandKit={draft.brandKit} pages={draft.pages} />
               <div
-                className={`domain-card-slide absolute bottom-0 left-0 z-30 w-full max-w-2xl ${
-                  domainCardVisible ? "domain-card-slide-open" : "domain-card-slide-closed"
+                className={`domain-card-fade absolute bottom-0 left-0 z-30 w-full max-w-2xl ${
+                  domainCardVisible ? "domain-card-fade-open" : "domain-card-fade-closed"
                 }`}
               >
                 <DomainCard {...cardProps} />

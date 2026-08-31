@@ -8,6 +8,7 @@ const domainKeywordsSchema = z.object({
   summary: z.object({
     line1: z.string().max(120),
     line2: z.string().max(120),
+    line3: z.string().max(120),
   }),
 });
 
@@ -18,7 +19,7 @@ export type DomainBrainstormInput = {
 
 export type DomainBrainstormResult = {
   keywords: string[];
-  summary: [string, string];
+  summary: [string, string, string];
   source: "llm" | "mock";
 };
 
@@ -60,9 +61,10 @@ export async function brainstormDomainKeywords(
   input: DomainBrainstormInput,
 ): Promise<DomainBrainstormResult> {
   const fallback = fallbackKeywords(input);
-  const fallbackSummary: [string, string] = [
+  const fallbackSummary: [string, string, string] = [
     fallback.length > 0 ? "Searching name.com for available domains." : "No domain suggestions available.",
     `Keywords: ${input.prompt.slice(0, 60)}`,
+    "Only available domains are shown.",
   ];
 
   if (!hasGatewayAuth()) {
@@ -86,8 +88,12 @@ export async function brainstormDomainKeywords(
         },
         summary: {
           type: "object",
-          properties: { line1: { type: "string" }, line2: { type: "string" } },
-          required: ["line1", "line2"],
+          properties: {
+            line1: { type: "string" },
+            line2: { type: "string" },
+            line3: { type: "string" },
+          },
+          required: ["line1", "line2", "line3"],
         },
       },
       required: ["keywords", "summary"],
@@ -119,7 +125,7 @@ export async function brainstormDomainKeywords(
 
 Given a brand context and the user's prompt, return JSON only with:
 - keywords: 2-6 lowercase alphanumeric search stems (no dots, no TLDs). Mix literal brand stems, shortened variants, playful spellings, and niche descriptors the user asked for.
-- summary: two short lines describing what you searched for.
+- summary: three short lines describing what you searched for.
 
 Examples: "voltworks", "voltwrks", "brightvolt", "getvolt" — not "voltworks.com".`,
           },
@@ -152,7 +158,7 @@ Examples: "voltworks", "voltwrks", "brightvolt", "getvolt" — not "voltworks.co
 
     return {
       keywords: [...new Set(keywords)].slice(0, 6),
-      summary: [parsed.summary.line1, parsed.summary.line2],
+      summary: [parsed.summary.line1, parsed.summary.line2, parsed.summary.line3],
       source: "llm",
     };
   } catch (error) {

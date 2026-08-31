@@ -83,9 +83,6 @@ export function PromptBar({
           )}
         </button>
       </div>
-      <p className="mt-1.5 text-center text-[11px] text-zinc-400 sm:text-xs">
-        Enter to send · Shift+Enter for a new line
-      </p>
     </div>
   );
 }

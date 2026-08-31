@@ -97,7 +97,7 @@ export async function suggestDomainsFromPrompt(
   options?: { brandName?: string },
 ): Promise<{
   domains: DomainSuggestion[];
-  summary: [string, string];
+  summary: [string, string, string];
   source: "namecom" | "mock";
 }> {
   const brainstorm = await brainstormDomainKeywords({

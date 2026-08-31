@@ -44,6 +44,7 @@ const generateSiteSchema = z.object({
   summary: z.object({
     line1: z.string().max(120),
     line2: z.string().max(120),
+    line3: z.string().max(120),
   }),
 });
 
@@ -82,8 +83,9 @@ const generateSiteJsonSchema = {
       properties: {
         line1: { type: "string" },
         line2: { type: "string" },
+        line3: { type: "string" },
       },
-      required: ["line1", "line2"],
+      required: ["line1", "line2", "line3"],
       additionalProperties: false,
     },
   },
@@ -103,7 +105,7 @@ export type GenerateSiteInput = {
 export type GenerateSiteResult = {
   brandKit: BrandKit;
   pages: PageDraft[];
-  summary: [string, string];
+  summary: [string, string, string];
   source: "llm" | "mock";
   error?: string;
 };
@@ -151,7 +153,7 @@ Rules:
 - bodyHtml: a polished, self-styled HTML fragment for one page. Put a <style> block first with layout, typography, and color CSS. Scope styles to your fragment (use class selectors); do not style html, body, or unscoped header/nav/main elements that could leak if mis-rendered. Use semantic HTML (header, nav, main, section, footer, article). Inline style attributes are fine.
 - No <html>, <head>, <body>, <script>, external stylesheets, or CDN links.
 - Match the user's business and latest prompt. Never revert to unrelated sample brands unless the user asked for that business.
-- summary: exactly two short factual lines (line1 and line2). Line2 may reference the latest cue briefly.
+- summary: exactly three short factual lines (line1, line2, line3). Line3 may reference the latest cue briefly.
 - Slugs: lowercase letters, numbers, hyphens only.`;
 }
 
@@ -185,6 +187,7 @@ export function mockFallback(input: GenerateSiteInput, error?: string): Generate
       summary: [
         "AI unavailable — kept your current preview.",
         `Latest cue: ${input.prompt.slice(0, 60)}`,
+        "Try again in a moment if the AI gateway was rate-limited.",
       ],
       source: "mock",
       error,
@@ -203,6 +206,7 @@ export function mockFallback(input: GenerateSiteInput, error?: string): Generate
     summary: [
       "AI unavailable — no preview generated.",
       `Latest cue: ${input.prompt.slice(0, 60)}`,
+      "Try again in a moment if the AI gateway was rate-limited.",
     ],
     source: "mock",
     error,
@@ -296,7 +300,7 @@ export async function generateSite(input: GenerateSiteInput): Promise<GenerateSi
     return {
       brandKit: object.brandKit,
       pages: ensureHomePage(object.pages, object.brandKit),
-      summary: [object.summary.line1, object.summary.line2],
+      summary: [object.summary.line1, object.summary.line2, object.summary.line3],
       source: "llm",
     };
   } catch (error) {

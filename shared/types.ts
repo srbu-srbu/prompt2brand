@@ -12,12 +12,14 @@ export interface PageDraft {
   bodyHtml: string;
 }
 
+export type SummaryLines = [string, string, string];
+
 export interface Draft {
   prompt: string;
   promptHistory: string[];
   brandKit: BrandKit;
   pages: PageDraft[];
-  summary: [string, string];
+  summary: SummaryLines;
   status: "idle" | "generating" | "ready" | "publishing";
 }
 

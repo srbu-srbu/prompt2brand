@@ -1,4 +1,4 @@
-import type { BrandKit, Draft, PageDraft } from "./types";
+import type { BrandKit, Draft, PageDraft, SummaryLines } from "./types";
 
 const STORAGE_KEY = "prompt2brand:draft";
 
@@ -15,7 +15,11 @@ export const EMPTY_DRAFT: Draft = {
     fontFamily: "system-ui, sans-serif",
   },
   pages: [],
-  summary: ["Describe your brand to get started.", "We will build a preview and suggest domains."],
+  summary: [
+    "Describe your brand to get started.",
+    "We will build a preview and suggest domains.",
+    "Use the tabs below to edit your site or pick a domain.",
+  ],
   status: "idle",
 };
 
@@ -23,10 +27,24 @@ export function loadDraft(): Draft {
   try {
     const raw = sessionStorage.getItem(STORAGE_KEY);
     if (!raw) return { ...EMPTY_DRAFT };
-    return { ...EMPTY_DRAFT, ...JSON.parse(raw) } as Draft;
+    const parsed = JSON.parse(raw) as Partial<Draft>;
+    return {
+      ...EMPTY_DRAFT,
+      ...parsed,
+      summary: normalizeSummary(parsed.summary),
+    };
   } catch {
     return { ...EMPTY_DRAFT };
   }
+}
+
+function normalizeSummary(summary: unknown): SummaryLines {
+  if (!Array.isArray(summary)) return EMPTY_DRAFT.summary;
+  return [
+    String(summary[0] ?? ""),
+    String(summary[1] ?? ""),
+    String(summary[2] ?? ""),
+  ];
 }
 
 export function saveDraft(draft: Draft) {

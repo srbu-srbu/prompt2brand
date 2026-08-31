@@ -230,7 +230,7 @@ export function DomainCard({
           <>
             <div className="grid min-h-0 flex-1 grid-cols-1 gap-0 overflow-hidden md:grid-cols-2">
               <section className="min-h-0 overflow-y-auto border-b border-zinc-200 bg-white p-3 md:border-b-0 md:border-r">
-                <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-zinc-500">
+                <p className="mb-2 text-[10px] font-bold uppercase tracking-wide text-zinc-500">
                   Powered by name.com
                 </p>
                 <ul className="space-y-1.5">
@@ -265,7 +265,7 @@ export function DomainCard({
               </section>
 
               <section className="min-h-0 overflow-y-auto bg-zinc-50 p-3">
-                <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-zinc-500">
+                <p className="mb-2 text-[10px] font-bold uppercase tracking-wide text-zinc-500">
                   Powered by SerpApi
                 </p>
                 {selectedDomain ? (

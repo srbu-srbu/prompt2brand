@@ -1,4 +1,4 @@
-import type { BrandConflict, BrandKit, DomainSuggestion, PageDraft, PublishedSite } from "./types";
+import type { BrandConflict, BrandKit, DomainSuggestion, PageDraft, PublishedSite, SummaryLines } from "./types";
 
 const DEFAULT_CONFLICTS: BrandConflict[] = [
   { platform: "web", label: "Web", found: false },
@@ -28,7 +28,7 @@ export async function apiGenerate(
   return res.json() as Promise<{
     brandKit: BrandKit;
     pages: PageDraft[];
-    summary: [string, string];
+    summary: SummaryLines;
     source?: "llm" | "mock";
   }>;
 }
@@ -42,7 +42,7 @@ export async function apiDomainSuggest(prompt: string, brandName?: string) {
   if (!res.ok) throw new Error("Domain suggest failed");
   return res.json() as Promise<{
     domains: DomainSuggestion[];
-    summary: [string, string];
+    summary: SummaryLines;
   }>;
 }
 
@@ -100,7 +100,8 @@ export async function mockGenerate(
       summary: [
         "AI unavailable — kept your current preview.",
         `Latest cue: ${prompt.slice(0, 60)}`,
-      ] as [string, string],
+        "Try again in a moment if the AI gateway was rate-limited.",
+      ] satisfies SummaryLines,
       source: "mock" as const,
     };
   }
@@ -117,7 +118,8 @@ export async function mockGenerate(
     summary: [
       "AI unavailable — no preview generated.",
       `Latest cue: ${prompt.slice(0, 60)}`,
-    ] as [string, string],
+      "Try again in a moment if the AI gateway was rate-limited.",
+    ] satisfies SummaryLines,
     source: "mock" as const,
   };
 }
@@ -126,7 +128,11 @@ export async function mockDomainSuggest(prompt: string) {
   await delay(400);
   return {
     domains: [],
-    summary: ["No domain suggestions available.", `Keywords: ${prompt.slice(0, 60)}`] as [string, string],
+    summary: [
+      "No domain suggestions available.",
+      `Keywords: ${prompt.slice(0, 60)}`,
+      "Try different keywords or a shorter brand name.",
+    ] satisfies SummaryLines,
   };
 }
 
