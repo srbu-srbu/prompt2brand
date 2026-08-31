@@ -439,17 +439,17 @@ export function DomainCard({
                 />
                 I confirm this website and domain
               </label>
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+              <div className="flex w-full items-center justify-between gap-y-2">
                 <Button
                   size="default"
-                  className="h-9 px-4 text-base"
+                  className="h-9 shrink-0 px-4 text-base"
                   disabled={!selectedDomain || !confirmed || launching || !hasWebsite}
                   onClick={onLaunch}
                 >
                   {launching ? "Launching..." : "Launch brand"}
                 </Button>
                 {liveIntegrations !== null ? (
-                  <p className="text-sm text-zinc-600">
+                  <p className="shrink-0 text-sm text-zinc-600">
                     Live Integration:{" "}
                     <span
                       className={liveIntegrations ? "font-medium text-emerald-700" : "font-medium text-zinc-500"}
