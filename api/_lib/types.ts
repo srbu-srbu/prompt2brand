@@ -16,3 +16,10 @@ export interface DomainSuggestion {
   fqdn: string;
   priceLabel?: string;
 }
+
+export interface BrandConflict {
+  platform: "web" | "instagram" | "linkedin" | "x" | "facebook";
+  label: string;
+  found: boolean;
+  snippet?: string;
+}

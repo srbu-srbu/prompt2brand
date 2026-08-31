@@ -1,15 +1,11 @@
 import type { BrandConflict, BrandKit, DomainSuggestion, PageDraft, PublishedSite, SummaryLines } from "./types";
 
-const DEFAULT_CONFLICTS: BrandConflict[] = [
-  { platform: "web", label: "Web", found: false },
-  { platform: "instagram", label: "Instagram", found: false },
-  { platform: "linkedin", label: "LinkedIn", found: false },
-  { platform: "x", label: "X", found: false },
-  { platform: "facebook", label: "Facebook", found: false },
-];
-
-export function conflictsForDomain(_fqdn: string): BrandConflict[] {
-  return DEFAULT_CONFLICTS;
+export async function apiDomainConflicts(fqdn: string, brandName?: string) {
+  const params = new URLSearchParams({ fqdn });
+  if (brandName?.trim()) params.set("brandName", brandName.trim());
+  const res = await fetch(`/api/domains/conflicts?${params}`);
+  if (!res.ok) throw new Error("Conflict check failed");
+  return res.json() as Promise<{ conflicts: BrandConflict[]; source: "mock" | "serpapi" }>;
 }
 
 export async function apiGenerate(

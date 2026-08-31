@@ -2,6 +2,7 @@ type NamecomConfig = {
   user: string;
   token: string;
   baseUrl: string;
+  environment: "sandbox" | "production";
 };
 
 export type NamecomSearchResult = {
@@ -20,13 +21,39 @@ type AvailabilityResponse = {
   results?: NamecomSearchResult[];
 };
 
-export function getNamecomConfig(): NamecomConfig | null {
-  const user = process.env.NAMECOM_API_USER?.trim();
-  const token = process.env.NAMECOM_API_TOKEN?.trim();
-  const baseUrl = process.env.NAMECOM_API_URL?.trim() || "https://api.dev.name.com";
+import { isLiveIntegrations, namecomEnvironment } from "./integrations";
 
-  if (!user || !token) return null;
-  return { user, token, baseUrl };
+export function getNamecomConfig(): NamecomConfig | null {
+  const live = isLiveIntegrations();
+  const environment = namecomEnvironment();
+
+  const user = live
+    ? process.env.NAMECOM_PRODUCTION_USER?.trim()
+    : process.env.NAMECOM_SANDBOX_USER?.trim();
+  const token = live
+    ? process.env.NAMECOM_PRODUCTION_TOKEN?.trim()
+    : process.env.NAMECOM_SANDBOX_TOKEN?.trim();
+  const defaultUrl = live ? "https://api.name.com" : "https://api.dev.name.com";
+  const baseUrl =
+    (live ? process.env.NAMECOM_PRODUCTION_URL : process.env.NAMECOM_SANDBOX_URL)?.trim() ||
+    defaultUrl;
+
+  if (user && token) {
+    return { user, token, baseUrl, environment };
+  }
+
+  const legacyUser = process.env.NAMECOM_API_USER?.trim();
+  const legacyToken = process.env.NAMECOM_API_TOKEN?.trim();
+  if (legacyUser && legacyToken) {
+    return {
+      user: legacyUser,
+      token: legacyToken,
+      baseUrl: process.env.NAMECOM_API_URL?.trim() || "https://api.dev.name.com",
+      environment: "sandbox",
+    };
+  }
+
+  return null;
 }
 
 export function hasNamecomConfig(): boolean {
@@ -44,7 +71,7 @@ export async function namecomFetch<T>(
 ): Promise<T> {
   const config = init.config ?? getNamecomConfig();
   if (!config) {
-    throw new Error("NAMECOM_API_USER and NAMECOM_API_TOKEN are required");
+    throw new Error("name.com credentials are required for the active integration mode");
   }
 
   const headers = new Headers(init.headers);

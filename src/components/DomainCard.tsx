@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLaunchStatus } from "@/lib/launchStatus";
@@ -8,8 +9,8 @@ import {
   overallLaunchStatus,
   type LaunchStep,
 } from "@/lib/launchSteps";
-import { conflictsForDomain, apiDomainSuggestMore } from "@/lib/api";
-import type { DomainSuggestion, PublishedSite } from "@/lib/types";
+import { apiDomainConflicts, apiDomainSuggestMore } from "@/lib/api";
+import type { BrandConflict, DomainSuggestion, PublishedSite } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 type LaunchPreview = {
@@ -190,10 +191,37 @@ export function DomainCard({
   hasWebsite = false,
   published,
 }: DomainCardProps) {
-  const conflicts = selectedDomain ? conflictsForDomain(selectedDomain) : [];
+  const [conflicts, setConflicts] = useState<BrandConflict[]>([]);
+  const [conflictsLoading, setConflictsLoading] = useState(false);
   const showLaunchStatus =
     Boolean(published) || (launchUiPhase === "status" && Boolean(launchPreview));
   const showLaunchSpinner = launchUiPhase === "spinner" && Boolean(launchPreview);
+
+  useEffect(() => {
+    if (!selectedDomain) {
+      setConflicts([]);
+      setConflictsLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setConflictsLoading(true);
+
+    void apiDomainConflicts(selectedDomain, brandName)
+      .then((result) => {
+        if (!cancelled) setConflicts(result.conflicts);
+      })
+      .catch(() => {
+        if (!cancelled) setConflicts([]);
+      })
+      .finally(() => {
+        if (!cancelled) setConflictsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedDomain, brandName]);
 
   async function loadMore() {
     try {
@@ -269,6 +297,12 @@ export function DomainCard({
                   Powered by SerpApi
                 </p>
                 {selectedDomain ? (
+                  conflictsLoading ? (
+                    <div className="flex items-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 py-4 text-sm text-zinc-500">
+                      <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                      Checking brand conflicts…
+                    </div>
+                  ) : (
                   <ul className="space-y-1.5">
                     {conflicts.map((item) => (
                       <li
@@ -287,6 +321,7 @@ export function DomainCard({
                       </li>
                     ))}
                   </ul>
+                  )
                 ) : (
                   <p className="text-sm text-zinc-600">Select a domain to check brand conflicts.</p>
                 )}
