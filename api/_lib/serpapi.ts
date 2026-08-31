@@ -1,5 +1,10 @@
 import type { BrandConflict } from "./types";
 import { isSerpApiEnabled } from "./integrations";
+import {
+  conflictKeyword,
+  keywordMatchesHaystack,
+  quoteForSearch,
+} from "../../shared/conflictMatch";
 
 type SerpApiResponse = {
   organic_results?: Array<{ title?: string; link?: string; snippet?: string }>;
@@ -43,80 +48,8 @@ const PLATFORM_QUERIES: Array<{
 const CACHE_TTL_MS = 60 * 60 * 1000;
 const conflictCache = new Map<string, { expires: number; conflicts: BrandConflict[] }>();
 
-/** Conflict checks use the selected domain stem (e.g. miliojen from miliojen.org). */
-function conflictKeyword(fqdn: string): string {
-  return fqdn.split(".")[0]?.replace(/-/g, " ").trim().toLowerCase() ?? fqdn.toLowerCase();
-}
-
-function quoteForSearch(keyword: string): string {
-  const trimmed = keyword.trim();
-  if (!trimmed) return trimmed;
-  return trimmed.includes(" ") ? `"${trimmed}"` : `"${trimmed}"`;
-}
-
-function escapeRegex(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function normalizedAlphaNum(value: string): string {
-  return value.toLowerCase().replace(/[^a-z0-9]/g, "");
-}
-
-function levenshtein(a: string, b: string): number {
-  if (a === b) return 0;
-  if (!a.length) return b.length;
-  if (!b.length) return a.length;
-
-  const row = Array.from({ length: b.length + 1 }, (_, index) => index);
-  for (let i = 1; i <= a.length; i += 1) {
-    let prev = i - 1;
-    row[0] = i;
-    for (let j = 1; j <= b.length; j += 1) {
-      const temp = row[j];
-      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-      row[j] = Math.min(row[j] + 1, row[j - 1] + 1, prev + cost);
-      prev = temp;
-    }
-  }
-  return row[b.length] ?? 0;
-}
-
 function resultHaystack(result: SerpResult): string {
   return [result.title, result.snippet, result.link].filter(Boolean).join(" ");
-}
-
-function hasWholeWordMatch(part: string, haystack: string): boolean {
-  if (part.length < 3) return false;
-  const re = new RegExp(`\\b${escapeRegex(part)}\\b`, "i");
-  return re.test(haystack);
-}
-
-function hasCloseTokenMatch(part: string, haystack: string): boolean {
-  const target = normalizedAlphaNum(part);
-  if (target.length < 4) return false;
-
-  const tokens = haystack
-    .toLowerCase()
-    .split(/[^a-z0-9]+/)
-    .map(normalizedAlphaNum)
-    .filter((token) => token.length > 0);
-
-  for (const token of tokens) {
-    if (Math.abs(token.length - target.length) > 1) continue;
-    if (levenshtein(target, token) <= 1) return true;
-  }
-
-  return false;
-}
-
-function resultMatchesKeyword(result: SerpResult, keyword: string): boolean {
-  const haystack = resultHaystack(result);
-  const parts = keyword.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return false;
-
-  return parts.every(
-    (part) => hasWholeWordMatch(part, haystack) || hasCloseTokenMatch(part, haystack),
-  );
 }
 
 function findMatchingResult(
@@ -124,13 +57,22 @@ function findMatchingResult(
   keyword: string,
 ): SerpResult | null {
   for (const result of results ?? []) {
-    if (resultMatchesKeyword(result, keyword)) return result;
+    if (keywordMatchesHaystack(resultHaystack(result), keyword)) return result;
   }
   return null;
 }
 
+function formatConflictSnippet(result: SerpResult): string | undefined {
+  const title = result.title?.trim();
+  const snippet = result.snippet?.trim();
+  if (title && snippet && !snippet.toLowerCase().includes(title.toLowerCase())) {
+    return `${title} — ${snippet}`;
+  }
+  return snippet ?? title;
+}
+
 function cacheKey(fqdn: string): string {
-  return fqdn.toLowerCase();
+  return `v4:${fqdn.toLowerCase()}`;
 }
 
 async function serpApiSearch(query: string, apiKey: string): Promise<SerpApiResponse> {
@@ -172,7 +114,8 @@ async function fetchLiveConflicts(fqdn: string): Promise<BrandConflict[]> {
         platform: platform.platform,
         label: platform.label,
         found: Boolean(match),
-        snippet: match?.snippet ?? match?.title,
+        snippet: match ? formatConflictSnippet(match) : undefined,
+        url: match?.link,
       });
     } catch (error) {
       console.error(`SerpApi ${platform.platform} lookup failed`, error);

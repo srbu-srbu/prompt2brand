@@ -33,6 +33,8 @@ export interface BrandConflict {
   label: string;
   found: boolean;
   snippet?: string;
+  /** SerpApi result URL — e.g. facebook.com/JoeTheElectrician when the slug matches. */
+  url?: string;
 }
 
 export interface PublishedSite {

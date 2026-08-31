@@ -9,9 +9,11 @@ import {
   overallLaunchStatus,
   type LaunchStep,
 } from "@/lib/launchSteps";
+import { ConflictHighlight } from "@/components/ConflictHighlight";
 import { apiDomainConflicts, apiDomainSuggestMore } from "@/lib/api";
 import type { BrandConflict, DomainSuggestion, PublishedSite } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { conflictKeyword } from "../../shared/conflictMatch";
 
 type LaunchPreview = {
   domainFqdn: string;
@@ -80,6 +82,35 @@ function LaunchSpinnerPanel({ domainFqdn }: { domainFqdn: string }) {
       <p className="mt-1 text-xs text-zinc-500">{domainFqdn}</p>
     </div>
   );
+}
+
+function conflictUrlLabel(
+  platform: BrandConflict["platform"],
+  url: string,
+): string {
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.replace(/^www\./, "");
+
+    if (platform === "facebook") {
+      const profileId = parsed.searchParams.get("id");
+      if (profileId) return `${host}/profile (${profileId})`;
+      const slug = parsed.pathname.replace(/^\/+|\/+$/g, "").split("/")[0];
+      if (slug && !["pages", "people", "profile.php"].includes(slug)) {
+        return `${host}/${slug}`;
+      }
+    }
+
+    if (platform === "instagram" || platform === "x") {
+      const handle = parsed.pathname.replace(/^\/+|\/+$/g, "").split("/")[0];
+      if (handle) return `${host}/${handle}`;
+    }
+
+    const path = parsed.pathname === "/" ? "" : parsed.pathname;
+    return `${host}${path}`;
+  } catch {
+    return url;
+  }
 }
 
 function LaunchStatusRow({
@@ -196,6 +227,7 @@ export function DomainCard({
   const showLaunchStatus =
     Boolean(published) || (launchUiPhase === "status" && Boolean(launchPreview));
   const showLaunchSpinner = launchUiPhase === "spinner" && Boolean(launchPreview);
+  const conflictMatchKeyword = selectedDomain ? conflictKeyword(selectedDomain) : "";
 
   useEffect(() => {
     if (!selectedDomain) {
@@ -315,8 +347,24 @@ export function DomainCard({
                             {item.found ? "Conflict" : "Clear"}
                           </span>
                         </div>
+                        {item.found && item.url ? (
+                          <a
+                            href={item.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="mt-1 block truncate text-xs font-medium text-sky-700 underline-offset-2 hover:underline"
+                            title={item.url}
+                          >
+                            <ConflictHighlight
+                              text={conflictUrlLabel(item.platform, item.url)}
+                              keyword={conflictMatchKeyword}
+                            />
+                          </a>
+                        ) : null}
                         {item.snippet ? (
-                          <p className="mt-1 text-xs text-zinc-500">{item.snippet}</p>
+                          <p className="mt-1 text-xs text-zinc-500">
+                            <ConflictHighlight text={item.snippet} keyword={conflictMatchKeyword} />
+                          </p>
                         ) : null}
                       </li>
                     ))}
