@@ -1,5 +1,6 @@
 import type { BrandKit, PageDraft } from "./types";
 import { getSql } from "./db";
+import { preparePublishedHtml } from "../../shared/internalLinks";
 import { wrapPage } from "./wrapPage";
 
 export type SiteRow = {
@@ -47,7 +48,9 @@ export async function savePublishedSite(input: {
   `;
 
   for (const page of input.pages) {
-    const html = wrapPage(page.title, page.bodyHtml, input.brandKit);
+    const pageMeta = input.pages.map((entry) => ({ slug: entry.slug, title: entry.title }));
+    const bodyHtml = preparePublishedHtml(page.bodyHtml, pageMeta);
+    const html = wrapPage(page.title, bodyHtml, input.brandKit);
     await sql`
       INSERT INTO site_pages (site_id, slug, title, html)
       VALUES (${input.siteId}, ${page.slug}, ${page.title}, ${html})

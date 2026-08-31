@@ -1,4 +1,5 @@
 import type { BrandKit, PageDraft } from "./types";
+import { preparePublishedHtml } from "../../shared/internalLinks";
 import { wrapPage } from "./wrapPage";
 
 const VERCEL_API = "https://api.vercel.com";
@@ -79,9 +80,11 @@ async function vercelFetch<T>(
 /** Build static file tree for a one-project-per-launch Vercel deployment. */
 export function buildStaticDeployFiles(pages: PageDraft[], brandKit: BrandKit): DeployFile[] {
   const files: DeployFile[] = [];
+  const pageMeta = pages.map((page) => ({ slug: page.slug, title: page.title }));
 
   for (const page of pages) {
-    const html = wrapPage(page.title, page.bodyHtml, brandKit);
+    const bodyHtml = preparePublishedHtml(page.bodyHtml, pageMeta);
+    const html = wrapPage(page.title, bodyHtml, brandKit);
     const file = page.slug === "home" ? "index.html" : `${page.slug}.html`;
     files.push({ file, data: html });
   }

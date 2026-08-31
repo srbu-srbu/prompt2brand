@@ -154,7 +154,8 @@ Rules:
 - No <html>, <head>, <body>, <script>, external stylesheets, or CDN links.
 - Match the user's business and latest prompt. Never revert to unrelated sample brands unless the user asked for that business.
 - summary: exactly three short factual lines (line1, line2, line3). Line3 may reference the latest cue briefly.
-- Slugs: lowercase letters, numbers, hyphens only.`;
+- Slugs: lowercase letters, numbers, hyphens only.
+- Multi-page nav: when separate pages exist, link between them with paths like /about or /contact — not #about hash links on a single page.`;
 }
 
 function buildUserPrompt(input: GenerateSiteInput): string {

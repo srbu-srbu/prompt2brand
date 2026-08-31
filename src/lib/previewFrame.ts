@@ -1,11 +1,15 @@
 /**
- * Preview-only iframe helpers. Stored draft HTML and published pages are never
- * modified here — we only wrap fragments for the in-app sandboxed iframe.
+ * Preview-only iframe helpers. Stored draft HTML is never modified here — we only
+ * wrap fragments for the in-app sandboxed iframe.
  */
 
-export const PREVIEW_SLUG_STORAGE_KEY = "prompt2brand:previewSlug";
+import {
+  P2B_PREFIX,
+  preparePreviewHtml as rewritePreviewLinks,
+  resolvePageSlug,
+} from "../../shared/internalLinks";
 
-const P2B_PREFIX = "#p2b:";
+export const PREVIEW_SLUG_STORAGE_KEY = "prompt2brand:previewSlug";
 
 export type PreviewPageMeta = {
   slug: string;
@@ -16,88 +20,13 @@ function escapeSrcDocHtml(html: string): string {
   return html.replace(/<\/script/gi, "<\\/script");
 }
 
-function slugifyLabel(label: string): string {
-  return label
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
-
-function buildSlugIndex(pages: PreviewPageMeta[]): Map<string, string> {
-  const map = new Map<string, string>();
-  for (const page of pages) {
-    map.set(page.slug.toLowerCase(), page.slug);
-    map.set(slugifyLabel(page.title), page.slug);
-    map.set(page.title.toLowerCase().trim(), page.slug);
-  }
-  return map;
-}
-
-function normalizeLinkTarget(raw: string): string {
-  let path = raw.trim();
-  if (path.startsWith(P2B_PREFIX)) path = path.slice(P2B_PREFIX.length);
-  if (path.startsWith("#")) path = path.slice(1);
-  path = path.split("?")[0]?.split("#")[0] ?? path;
-  path = path.replace(/^(\.\/)+/, "").replace(/\\/g, "/");
-  path = path.replace(/^\/+/, "").replace(/\/+$/, "");
-  const segments = path.split("/").filter(Boolean);
-  path = (segments[segments.length - 1] ?? path).replace(/\.html$/i, "");
-  return path.toLowerCase();
-}
-
-function canonicalSlug(raw: string, slugIndex: Map<string, string>, slugs: string[]): string | null {
-  const normalized = normalizeLinkTarget(raw);
-  if (!normalized || normalized === "index" || normalized === "home") {
-    return slugs.includes("home") ? "home" : null;
-  }
-  return slugIndex.get(normalized) ?? null;
-}
-
 /** Preview-only HTML adjustments. The returned string is never saved to draft or publish. */
 export function preparePreviewHtml(bodyHtml: string, pages: PreviewPageMeta[]): string {
-  const slugs = pages.map((page) => page.slug);
-  const slugIndex = buildSlugIndex(pages);
-
-  const rewriteHref = (href: string): string | null => {
-    const slug = canonicalSlug(href, slugIndex, slugs);
-    return slug ? `${P2B_PREFIX}${slug}` : null;
-  };
-
-  let html = bodyHtml;
-
-  html = html.replace(/\shref=(["'])([^"']+)\1/gi, (match, quote: string, href: string) => {
-    const trimmed = href.trim();
-    if (/^(https?:|mailto:|tel:|javascript:)/i.test(trimmed)) return match;
-
-    const previewHref = rewriteHref(trimmed);
-    if (!previewHref) return match;
-
-    return ` href=${quote}${previewHref}${quote} data-p2b-slug=${quote}${previewHref.slice(P2B_PREFIX.length)}${quote}`;
-  });
-
-  html = html.replace(/\shref=([^\s>]+)/gi, (match, href: string) => {
-    const trimmed = href.trim();
-    if (/^(https?:|mailto:|tel:|javascript:|#p2b:|["'])/i.test(trimmed)) return match;
-
-    const previewHref = rewriteHref(trimmed);
-    if (!previewHref) return match;
-
-    return ` href="${previewHref}" data-p2b-slug="${previewHref.slice(P2B_PREFIX.length)}"`;
-  });
-
-  return html;
+  return rewritePreviewLinks(bodyHtml, pages);
 }
 
 export function slugFromPreviewHref(href: string, pages: PreviewPageMeta[]): string | null {
-  const slugs = pages.map((page) => page.slug);
-  const trimmed = href.trim();
-  if (!trimmed || trimmed === "#" || trimmed === "/") {
-    return slugs.includes("home") ? "home" : null;
-  }
-  if (/^(https?:|mailto:|tel:|javascript:)/i.test(trimmed)) return null;
-
-  return canonicalSlug(trimmed, buildSlugIndex(pages), slugs);
+  return resolvePageSlug(href, pages);
 }
 
 export function readStoredPreviewSlug(pages: PreviewPageMeta[], fallback = "home"): string {
