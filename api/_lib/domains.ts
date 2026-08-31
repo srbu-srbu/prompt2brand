@@ -1,35 +1,11 @@
 import type { DomainSuggestion } from "./types";
 import {
   brainstormDomainKeywords,
-  sanitizeStem,
   type DomainBrainstormInput,
+  type DomainBrainstormResult,
 } from "./domainBrainstorm";
+import { extractStemsFromContext } from "./domainPromptParse";
 import { hasNamecomConfig, searchDomains, type NamecomSearchResult } from "./namecom";
-
-const STOP_WORDS = new Set([
-  "a",
-  "an",
-  "the",
-  "and",
-  "or",
-  "for",
-  "with",
-  "from",
-  "your",
-  "my",
-  "our",
-  "brand",
-  "website",
-  "domain",
-  "name",
-  "called",
-  "named",
-  "short",
-  "playful",
-  "try",
-  "prefix",
-  "suffix",
-]);
 
 type DomainContext = {
   brandName?: string;
@@ -55,23 +31,6 @@ function toSuggestion(result: NamecomSearchResult): DomainSuggestion | null {
   };
 }
 
-export function keywordFromPrompt(prompt: string): string {
-  const cleaned = prompt
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, " ")
-    .trim();
-
-  const words = cleaned
-    .split(/\s+/)
-    .filter((word) => word.length > 2 && !STOP_WORDS.has(word));
-
-  const compact = words.join("").replace(/[^a-z0-9]/g, "");
-  if (compact.length >= 3) return compact.slice(0, 40);
-
-  const fallback = cleaned.replace(/\s+/g, "").slice(0, 40);
-  return fallback || "brand";
-}
-
 function dedupeDomains(domains: DomainSuggestion[]): DomainSuggestion[] {
   const seen = new Set<string>();
   const output: DomainSuggestion[] = [];
@@ -92,6 +51,8 @@ async function searchForStems(input: {
   exclude?: Set<string>;
   limit: number;
 }): Promise<DomainSuggestion[]> {
+  if (input.stems.length === 0 || input.preferredTlds.length === 0) return [];
+
   const batches = await Promise.all(
     input.stems.map((stem) =>
       searchDomains({
@@ -124,6 +85,14 @@ function buildBrainstormInput(
   };
 }
 
+function resolveStems(
+  brainstorm: DomainBrainstormResult,
+  input: DomainBrainstormInput,
+): string[] {
+  if (brainstorm.stems.length > 0) return brainstorm.stems;
+  return extractStemsFromContext(input);
+}
+
 export async function suggestDomainsFromPrompt(
   prompt: string,
   options?: DomainContext,
@@ -131,19 +100,22 @@ export async function suggestDomainsFromPrompt(
   domains: DomainSuggestion[];
   summary: [string, string, string];
   source: "namecom" | "mock";
+  brainstormSource: DomainBrainstormResult["source"];
 }> {
-  const brainstorm = await brainstormDomainKeywords(
-    buildBrainstormInput(prompt, { ...options, mode: "initial" }),
-  );
+  const brainstormInput = buildBrainstormInput(prompt, { ...options, mode: "initial" });
+  const brainstorm = await brainstormDomainKeywords(brainstormInput);
+  const stems = resolveStems(brainstorm, brainstormInput);
 
   if (!hasNamecomConfig()) {
-    return { domains: [], summary: brainstorm.summary, source: "mock" };
+    return {
+      domains: [],
+      summary: brainstorm.summary,
+      source: "mock",
+      brainstormSource: brainstorm.source,
+    };
   }
 
   try {
-    const stems =
-      brainstorm.stems.length > 0 ? brainstorm.stems : [keywordFromPrompt(prompt)];
-
     const domains = await searchForStems({
       stems,
       preferredTlds: brainstorm.preferredTlds,
@@ -151,19 +123,34 @@ export async function suggestDomainsFromPrompt(
     });
 
     if (domains.length === 0) {
-      return { domains: [], summary: brainstorm.summary, source: "mock" };
+      return {
+        domains: [],
+        summary: brainstorm.summary,
+        source: "mock",
+        brainstormSource: brainstorm.source,
+      };
     }
 
-    return { domains, summary: brainstorm.summary, source: "namecom" };
+    return {
+      domains,
+      summary: brainstorm.summary,
+      source: "namecom",
+      brainstormSource: brainstorm.source,
+    };
   } catch (error) {
     console.error("name.com suggest failed", error);
-    return { domains: [], summary: brainstorm.summary, source: "mock" };
+    return {
+      domains: [],
+      summary: brainstorm.summary,
+      source: "mock",
+      brainstormSource: brainstorm.source,
+    };
   }
 }
 
 export async function suggestMoreDomains(input: {
   exclude: string[];
-  prompt?: string;
+  domainCue?: string;
   brandName?: string;
   tagline?: string;
   pageTitles?: string[];
@@ -171,32 +158,35 @@ export async function suggestMoreDomains(input: {
   domains: DomainSuggestion[];
   summary: [string, string, string];
   source: "namecom" | "mock";
+  brainstormSource: DomainBrainstormResult["source"];
 }> {
   const prompt =
-    input.prompt?.trim() ||
+    input.domainCue?.trim() ||
     input.brandName?.trim() ||
-    sanitizeStem(input.exclude[0]?.split(".")[0] ?? "") ||
+    input.exclude[0]?.split(".")[0]?.trim() ||
     "brand";
 
-  const brainstorm = await brainstormDomainKeywords(
-    buildBrainstormInput(prompt, {
-      brandName: input.brandName,
-      tagline: input.tagline,
-      pageTitles: input.pageTitles,
-      mode: "more",
-      excludeFqdns: input.exclude,
-    }),
-  );
+  const brainstormInput = buildBrainstormInput(prompt, {
+    brandName: input.brandName,
+    tagline: input.tagline,
+    pageTitles: input.pageTitles,
+    mode: "more",
+    excludeFqdns: input.exclude,
+  });
+  const brainstorm = await brainstormDomainKeywords(brainstormInput);
+  const stems = resolveStems(brainstorm, brainstormInput);
 
   if (!hasNamecomConfig()) {
-    return { domains: [], summary: brainstorm.summary, source: "mock" };
+    return {
+      domains: [],
+      summary: brainstorm.summary,
+      source: "mock",
+      brainstormSource: brainstorm.source,
+    };
   }
 
   try {
     const exclude = new Set(input.exclude.map((fqdn) => fqdn.toLowerCase()));
-    const stems =
-      brainstorm.stems.length > 0 ? brainstorm.stems : [keywordFromPrompt(prompt)];
-
     const domains = await searchForStems({
       stems,
       preferredTlds: brainstorm.preferredTlds,
@@ -204,9 +194,19 @@ export async function suggestMoreDomains(input: {
       limit: 5,
     });
 
-    return { domains, summary: brainstorm.summary, source: "namecom" };
+    return {
+      domains,
+      summary: brainstorm.summary,
+      source: "namecom",
+      brainstormSource: brainstorm.source,
+    };
   } catch (error) {
     console.error("name.com suggest-more failed", error);
-    return { domains: [], summary: brainstorm.summary, source: "mock" };
+    return {
+      domains: [],
+      summary: brainstorm.summary,
+      source: "mock",
+      brainstormSource: brainstorm.source,
+    };
   }
 }

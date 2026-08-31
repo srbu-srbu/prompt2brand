@@ -1,4 +1,9 @@
 import { z } from "zod";
+import {
+  extractStemsFromContext,
+  mergePreferredTlds,
+  normalizeStems,
+} from "./domainPromptParse";
 
 const MODEL_ID = "google/gemini-2.5-flash-lite";
 const GATEWAY_URL = "https://ai-gateway.vercel.sh/v1/chat/completions";
@@ -6,23 +11,8 @@ const GATEWAY_URL = "https://ai-gateway.vercel.sh/v1/chat/completions";
 export const DEFAULT_PREFERRED_TLDS = ["com", "org", "net"] as const;
 export const MORE_PREFERRED_TLDS = ["io", "co", "app"] as const;
 
-const ALLOWED_TLDS = new Set([
-  "com",
-  "org",
-  "net",
-  "io",
-  "co",
-  "app",
-  "dev",
-  "shop",
-  "store",
-  "online",
-  "info",
-  "biz",
-]);
-
 const domainBrainstormSchema = z.object({
-  stems: z.array(z.string().min(2).max(40)).min(2).max(6),
+  stems: z.array(z.string().min(2).max(40)).min(1).max(6),
   preferredTlds: z.array(z.string().min(2).max(20)).min(1).max(5),
   summary: z.object({
     line1: z.string().max(120),
@@ -65,21 +55,12 @@ export function sanitizeStem(raw: string): string {
 }
 
 export function sanitizeTlds(raw: string[]): string[] {
-  const cleaned = raw
-    .map((tld) => tld.toLowerCase().replace(/^\.+/, "").trim())
-    .filter((tld) => ALLOWED_TLDS.has(tld));
-
-  return cleaned.length > 0 ? [...new Set(cleaned)] : [...DEFAULT_PREFERRED_TLDS];
+  return mergePreferredTlds(raw, "", [...DEFAULT_PREFERRED_TLDS]);
 }
 
-function fallbackStems(input: DomainBrainstormInput): string[] {
-  const fromBrand = input.brandName ? sanitizeStem(input.brandName) : "";
-  const fromPrompt = sanitizeStem(input.prompt.replace(/\s+/g, " "));
-  const keywords = [fromBrand, fromPrompt].filter((word) => word.length >= 3);
-  return [...new Set(keywords)].slice(0, 4);
-}
-
-function fallbackTlds(mode: DomainBrainstormMode): string[] {
+function fallbackTlds(mode: DomainBrainstormMode, prompt: string): string[] {
+  const fromPrompt = mergePreferredTlds([], prompt, []);
+  if (fromPrompt.length > 0) return fromPrompt;
   return mode === "more" ? [...MORE_PREFERRED_TLDS] : [...DEFAULT_PREFERRED_TLDS];
 }
 
@@ -90,16 +71,16 @@ function moreFallbackStems(input: DomainBrainstormInput): string[] {
       .filter((stem) => stem.length >= 3),
   );
 
-  const base = fallbackStems(input).filter((stem) => !excludedStems.has(stem));
-  if (base.length >= 2) return base.slice(0, 4);
+  const base = extractStemsFromContext(input).filter((stem) => !excludedStems.has(stem));
+  if (base.length >= 1) return base.slice(0, 4);
 
   const suffixes = ["hq", "go", "site", "hub"];
-  const seed = base[0] ?? excludedStems.values().next().value ?? "brand";
+  const seed = excludedStems.values().next().value ?? "brand";
   const alternates = suffixes
     .map((suffix) => sanitizeStem(`${seed}${suffix}`))
     .filter((stem) => stem.length >= 3 && !excludedStems.has(stem));
 
-  return [...new Set([...base, ...alternates])].slice(0, 4);
+  return [...new Set(alternates])].slice(0, 4);
 }
 
 type GatewayChatResponse = {
@@ -116,8 +97,8 @@ function parseModelJson(content: string): unknown {
 
 function buildFallbackResult(input: DomainBrainstormInput): DomainBrainstormResult {
   const mode = input.mode ?? "initial";
-  const stems = mode === "more" ? moreFallbackStems(input) : fallbackStems(input);
-  const preferredTlds = fallbackTlds(mode);
+  const stems = mode === "more" ? moreFallbackStems(input) : extractStemsFromContext(input);
+  const preferredTlds = fallbackTlds(mode, input.prompt);
   const fallbackSummary: [string, string, string] =
     stems.length > 0
       ? [
@@ -137,21 +118,21 @@ function systemPrompt(mode: DomainBrainstormMode): string {
     return `You brainstorm additional domain search keywords for prompt2brand.
 
 The user already saw some domain suggestions and wants MORE options. Return JSON only with:
-- stems: 2-4 NEW lowercase alphanumeric search stems (no dots, no TLDs). Do not repeat stems already shown in excludeFqdns. Invent shortened variants, niche descriptors, location hints, or playful spellings suited to the brand.
-- preferredTlds: 2-4 TLD extensions WITHOUT dots (e.g. "io", "co", "app"). Pick extensions that fit the brand and differ from the first pass when possible.
+- stems: 1-4 NEW lowercase alphanumeric search stems (no dots, no TLDs). NEVER return the user's instruction sentence as a stem. Use brand names and short variants only — e.g. "miliojen", "milio", "getmilio".
+- preferredTlds: 2-4 TLD extensions WITHOUT dots (e.g. "io", "co", "app", "dev", "ai"). Honor explicit TLD requests in the prompt.
 - summary: three short lines describing the new search (mention TLDs on line 3).
 
-Examples: stems "voltwrks", "getvolt" — not "voltworks.com". preferredTlds: ["io", "co"].`;
+If the prompt asks for specific extensions (example: "provide .dev and .ai for miliojen"), stems should be ["miliojen"] and preferredTlds should include ["dev", "ai"].`;
   }
 
   return `You brainstorm domain name search keywords for prompt2brand.
 
 Given brand context and the user's prompt, return JSON only with:
-- stems: 2-6 lowercase alphanumeric search stems (no dots, no TLDs). Mix literal brand stems, shortened variants, playful spellings, and niche descriptors.
-- preferredTlds: 2-4 TLD extensions WITHOUT dots (e.g. "com", "org", "net", "io"). Choose TLDs that fit the business type, audience, and tone from the website context.
+- stems: 1-6 lowercase alphanumeric search stems (no dots, no TLDs). NEVER return the full instruction sentence as a stem. Use brand names and short variants only.
+- preferredTlds: 2-4 TLD extensions WITHOUT dots (e.g. "com", "org", "net", "dev", "ai", "io"). Choose TLDs that fit the business and honor explicit TLD requests in the prompt.
 - summary: three short lines describing what you searched for (mention chosen TLDs on line 3).
 
-Examples: stems "voltworks", "voltwrks" — not "voltworks.com". preferredTlds: ["com", "org"].`;
+Refinement example: prompt "Please provide .dev and .ai extensions for miliojen" -> stems ["miliojen"], preferredTlds ["dev", "ai"].`;
 }
 
 export async function brainstormDomainKeywords(
@@ -175,7 +156,7 @@ export async function brainstormDomainKeywords(
       properties: {
         stems: {
           type: "array",
-          minItems: 2,
+          minItems: 1,
           maxItems: mode === "more" ? 4 : 6,
           items: { type: "string" },
         },
@@ -245,8 +226,12 @@ export async function brainstormDomainKeywords(
     }
 
     const parsed = domainBrainstormSchema.parse(parseModelJson(content));
-    const stems = parsed.stems.map(sanitizeStem).filter((word) => word.length >= 3);
-    const preferredTlds = sanitizeTlds(parsed.preferredTlds);
+    const stems = normalizeStems(parsed.stems);
+    const preferredTlds = mergePreferredTlds(
+      parsed.preferredTlds,
+      input.prompt,
+      fallbackTlds(mode, input.prompt),
+    );
 
     if (stems.length === 0) {
       return fallback;

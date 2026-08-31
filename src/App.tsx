@@ -48,7 +48,7 @@ const domainCardProps = (
   launchUiPhase,
   launchPreview,
   brandName,
-  domainPrompt,
+  domainCue: domainPrompt,
   brandTagline,
   pageTitles,
   onMoreSummary,
@@ -63,6 +63,7 @@ export default function App() {
   const [promptMode, setPromptMode] = useState<PromptMode>("site");
   const [loading, setLoading] = useState(false);
   const [domains, setDomains] = useState<DomainSuggestion[]>([]);
+  const [latestDomainCue, setLatestDomainCue] = useState("");
   const [selectedDomain, setSelectedDomain] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState(false);
   const [launching, setLaunching] = useState(false);
@@ -128,16 +129,40 @@ export default function App() {
       };
 
       if (promptMode === "domain") {
-        const result = await safeDomainSuggest(prompt, domainContext);
-        setDomains(result.domains);
-        setDraft((current) =>
-          mergeDraft(current, {
-            prompt,
-            promptHistory: appendPromptHistory(current.promptHistory, prompt),
-            summary: result.summary,
-            status: "ready",
-          }),
-        );
+        setLatestDomainCue(prompt);
+        try {
+          const result = await safeDomainSuggest(prompt, domainContext);
+          setDomains(result.domains);
+          setSelectedDomain(null);
+          setConfirmed(false);
+          setDraft((current) =>
+            mergeDraft(current, {
+              prompt,
+              promptHistory: appendPromptHistory(current.promptHistory, prompt),
+              summary: result.domains.length
+                ? result.summary
+                : [
+                    "No available domains matched that search.",
+                    result.summary[1] ?? `Keywords: ${prompt.slice(0, 60)}`,
+                    result.summary[2] ?? "Try different TLDs or shorter stems.",
+                  ],
+              status: "ready",
+            }),
+          );
+        } catch {
+          setDraft((current) =>
+            mergeDraft(current, {
+              prompt,
+              promptHistory: appendPromptHistory(current.promptHistory, prompt),
+              summary: [
+                "Domain search failed — try again in a moment.",
+                `Latest cue: ${prompt.slice(0, 60)}`,
+                "Check AI gateway and name.com credentials.",
+              ],
+              status: "ready",
+            }),
+          );
+        }
       } else {
         const result = await safeGenerate(prompt, draft);
         const rebrand = draft.brandKit.name !== result.brandKit.name;
@@ -225,7 +250,7 @@ export default function App() {
     launchUiPhase,
     launchPreview,
     draft.brandKit.name,
-    draft.prompt,
+    latestDomainCue || draft.prompt,
     draft.brandKit.tagline,
     draft.pages.map((page) => page.title),
     (summary) => {

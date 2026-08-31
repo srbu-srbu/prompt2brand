@@ -33,7 +33,7 @@ type DomainCardProps = {
   launchUiPhase?: LaunchUiPhase;
   launchPreview?: LaunchPreview | null;
   brandName: string;
-  domainPrompt?: string;
+  domainCue?: string;
   brandTagline?: string;
   pageTitles?: string[];
   onMoreSummary?: (summary: SummaryLines) => void;
@@ -223,7 +223,7 @@ export function DomainCard({
   launchUiPhase = "idle",
   launchPreview,
   brandName,
-  domainPrompt,
+  domainCue,
   brandTagline,
   pageTitles,
   onMoreSummary,
@@ -271,7 +271,7 @@ export function DomainCard({
     try {
       const data = await apiDomainSuggestMore({
         exclude: domains.map((d) => d.fqdn),
-        prompt: domainPrompt,
+        domainCue,
         brandName,
         tagline: brandTagline,
         pageTitles,

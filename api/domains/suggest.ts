@@ -19,7 +19,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  const { domains, summary, source } = await suggestDomainsFromPrompt(prompt, {
+  const { domains, summary, source, brainstormSource } = await suggestDomainsFromPrompt(prompt, {
     brandName,
     tagline,
     pageTitles,
@@ -30,5 +30,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     domains,
     summary,
     source,
+    brainstormSource,
   });
 }

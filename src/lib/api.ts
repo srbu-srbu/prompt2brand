@@ -47,12 +47,14 @@ export async function apiDomainSuggest(
   return res.json() as Promise<{
     domains: DomainSuggestion[];
     summary: SummaryLines;
+    source?: "namecom" | "mock";
+    brainstormSource?: "llm" | "mock";
   }>;
 }
 
 export async function apiDomainSuggestMore(input: {
   exclude: string[];
-  prompt?: string;
+  domainCue?: string;
   brandName?: string;
   tagline?: string;
   pageTitles?: string[];
@@ -63,7 +65,12 @@ export async function apiDomainSuggestMore(input: {
     body: JSON.stringify(input),
   });
   if (!res.ok) throw new Error("More suggestions failed");
-  return res.json() as Promise<{ domains: DomainSuggestion[]; summary: SummaryLines }>;
+  return res.json() as Promise<{
+    domains: DomainSuggestion[];
+    summary: SummaryLines;
+    source?: "namecom" | "mock";
+    brainstormSource?: "llm" | "mock";
+  }>;
 }
 
 export async function apiPublish(payload: {
@@ -178,11 +185,11 @@ export async function safeDomainSuggest(
   prompt: string,
   options?: { brandName?: string; tagline?: string; pageTitles?: string[] },
 ) {
-  try {
-    return await apiDomainSuggest(prompt, options);
-  } catch {
-    return mockDomainSuggest(prompt);
+  const result = await apiDomainSuggest(prompt, options);
+  if (result.brainstormSource === "mock") {
+    console.warn("Domain brainstorm used script fallback — check AI gateway / logs");
   }
+  return result;
 }
 
 export async function safePublish(payload: {
