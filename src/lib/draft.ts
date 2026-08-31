@@ -18,7 +18,7 @@ export const EMPTY_DRAFT: Draft = {
   summary: [
     "Describe your brand to get started.",
     "We will build a preview and suggest domains.",
-    "Use the tabs below to edit your site or pick a domain.",
+    "Use the tabs above to edit your site or pick a domain.",
   ],
   status: "idle",
 };
