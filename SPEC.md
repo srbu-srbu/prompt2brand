@@ -128,7 +128,7 @@ User prompt (+ brand name, tagline, page titles)
 POST /api/domains/suggest  OR  /api/domains/suggest/more
         ↓
 domainBrainstorm.ts  →  Gemini (Vercel AI Gateway)
-   returns: { stems: ["miliojen"], preferredTlds: ["dev", "ai"], summary }
+   returns: { stems: ["miliojen"], preferredTlds: ["dev", "xyz"], summary }
    fallback: domainPromptParse.ts (extract brand stem + TLDs from prompt — never whole sentence)
         ↓
 name.com POST /core/v1/domains:search  (per stem, tldFilter = preferredTlds)
@@ -138,7 +138,7 @@ Filter: purchasable, non-premium, purchaseType = registration
 Domain picker list
 ```
 
-**Domain tab prompt** (e.g. *"Please provide .dev and .ai extensions for miliojen"*) replaces the suggestion list and clears domain selection.
+**Domain tab prompt** (e.g. *"Please provide .dev and .xyz extensions for miliojen"*) replaces the suggestion list and clears domain selection.
 
 **More suggestions** calls LLM in `mode: "more"` with excluded FQDNs, then name.com search again. Route: `POST /api/domains/suggest/more`.
 
@@ -390,7 +390,7 @@ Submit sandbox-first (`P2B_LIVE_INTEGRATIONS=0`). Use flag = 1 only for SerpApi/
 
 1. Land on minimal prompt UI — voiceover product vision (unlimited future edits after subscribe)
 2. Site tab prompt → preview builds; show **3-line summary**
-3. **Choose your domain** tab → card opens; domain cue (e.g. *".dev and .ai for miliojen"*) refreshes list
+3. **Choose your domain** tab → card opens; domain cue (e.g. *".dev and .xyz for miliojen"*) refreshes list
 4. Optional: site tab tweak; highlight **Powered by name.com** | **Powered by SerpApi**
 5. Select domain → conflicts load; show URL + highlight when conflict (e.g. Facebook slug match)
 6. Confirm + **Launch brand** → spinner → status panel with step lines

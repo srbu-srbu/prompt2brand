@@ -9,7 +9,7 @@ const MODEL_ID = "google/gemini-2.5-flash-lite";
 const GATEWAY_URL = "https://ai-gateway.vercel.sh/v1/chat/completions";
 
 export const DEFAULT_PREFERRED_TLDS = ["com", "org", "net"] as const;
-export const MORE_PREFERRED_TLDS = ["io", "co", "app"] as const;
+export const MORE_PREFERRED_TLDS = ["xyz", "app", "dev"] as const;
 
 const domainBrainstormSchema = z.object({
   stems: z.array(z.string().min(2).max(40)).min(1).max(6),
@@ -119,20 +119,20 @@ function systemPrompt(mode: DomainBrainstormMode): string {
 
 The user already saw some domain suggestions and wants MORE options. Return JSON only with:
 - stems: 1-4 NEW lowercase alphanumeric search stems (no dots, no TLDs). NEVER return the user's instruction sentence as a stem. Use brand names and short variants only — e.g. "miliojen", "milio", "getmilio".
-- preferredTlds: 2-4 TLD extensions WITHOUT dots (e.g. "io", "co", "app", "dev", "ai"). Honor explicit TLD requests in the prompt.
+- preferredTlds: 2-4 TLD extensions WITHOUT dots (e.g. "app", "dev", "xyz", "com"). Honor explicit TLD requests in the prompt.
 - summary: three short lines describing the new search (mention TLDs on line 3).
 
-If the prompt asks for specific extensions (example: "provide .dev and .ai for miliojen"), stems should be ["miliojen"] and preferredTlds should include ["dev", "ai"].`;
+If the prompt asks for specific extensions (example: "provide .dev and .xyz for miliojen"), stems should be ["miliojen"] and preferredTlds should include ["dev", "xyz"].`;
   }
 
   return `You brainstorm domain name search keywords for prompt2brand.
 
 Given brand context and the user's prompt, return JSON only with:
 - stems: 1-6 lowercase alphanumeric search stems (no dots, no TLDs). NEVER return the full instruction sentence as a stem. Use brand names and short variants only.
-- preferredTlds: 2-4 TLD extensions WITHOUT dots (e.g. "com", "org", "net", "dev", "ai", "io"). Choose TLDs that fit the business and honor explicit TLD requests in the prompt.
+- preferredTlds: 2-4 TLD extensions WITHOUT dots (e.g. "com", "org", "net", "dev", "xyz", "app"). Choose TLDs that fit the business and honor explicit TLD requests in the prompt.
 - summary: three short lines describing what you searched for (mention chosen TLDs on line 3).
 
-Refinement example: prompt "Please provide .dev and .ai extensions for miliojen" -> stems ["miliojen"], preferredTlds ["dev", "ai"].`;
+Refinement example: prompt "Please provide .dev and .xyz extensions for miliojen" -> stems ["miliojen"], preferredTlds ["dev", "xyz"].`;
 }
 
 export async function brainstormDomainKeywords(

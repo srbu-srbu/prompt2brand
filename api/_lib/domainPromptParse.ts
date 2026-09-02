@@ -5,11 +5,9 @@ export const ALLOWED_TLDS = new Set([
   "com",
   "org",
   "net",
-  "io",
-  "co",
   "app",
   "dev",
-  "ai",
+  "xyz",
   "shop",
   "store",
   "online",
@@ -64,7 +62,7 @@ const TLD_STOP_WORDS = new Set([
 const SENTENCE_MARKERS =
   /\b(please|provide|extension|extensions|domain|domains|suggest|search|available|show me|give me)\b/i;
 
-/** Pull explicit TLD requests like ".dev", ".ai", or "dev and ai extensions". */
+/** Pull explicit TLD requests like ".dev", ".xyz", or "dev and xyz extensions". */
 export function extractTldsFromPrompt(prompt: string): string[] {
   const found = new Set<string>();
 
@@ -74,7 +72,7 @@ export function extractTldsFromPrompt(prompt: string): string[] {
   }
 
   for (const match of prompt.matchAll(
-    /\b(com|org|net|io|co|app|dev|ai|shop|store|online|info|biz)\b/gi,
+    /\b(com|org|net|app|dev|xyz|shop|store|online|info|biz)\b/gi,
   )) {
     const tld = match[1].toLowerCase();
     if (ALLOWED_TLDS.has(tld)) found.add(tld);

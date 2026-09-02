@@ -88,6 +88,34 @@ function LaunchSpinnerPanel({ domainFqdn }: { domainFqdn: string }) {
   );
 }
 
+function ColumnHeader({ title, poweredBy }: { title: string; poweredBy: string }) {
+  return (
+    <div className="mb-2 flex items-center justify-between gap-2">
+      <p className="text-xs font-medium text-zinc-800">{title}</p>
+      <p className="shrink-0 text-[10px] font-bold uppercase tracking-wide text-zinc-500">
+        {poweredBy}
+      </p>
+    </div>
+  );
+}
+
+function conflictRiskLabel(conflicts: BrandConflict[]): "none" | "low" | "medium" | "high" {
+  const count = conflicts.filter((item) => item.found).length;
+  if (count === 0) return "none";
+  if (count === 1) return "low";
+  if (count === 2) return "medium";
+  return "high";
+}
+
+function conflictSectionTitle(
+  conflicts: BrandConflict[],
+  loading: boolean,
+  hasSelection: boolean,
+): string {
+  if (!hasSelection || loading) return "Brand conflicts";
+  return `Brand conflicts: ${conflictRiskLabel(conflicts)}`;
+}
+
 function conflictUrlLabel(
   platform: BrandConflict["platform"],
   url: string,
@@ -328,9 +356,7 @@ export function DomainCard({
           <>
             <div className="grid min-h-0 flex-1 grid-cols-1 gap-0 overflow-hidden md:grid-cols-2">
               <section className="min-h-0 overflow-y-auto border-b border-zinc-200 bg-white p-3 md:border-b-0 md:border-r">
-                <p className="mb-2 text-[10px] font-bold uppercase tracking-wide text-zinc-500">
-                  Powered by name.com
-                </p>
+                <ColumnHeader title="Domain suggestions" poweredBy="Powered by name.com" />
                 <ul className="space-y-1.5">
                   {domains.map((domain) => (
                     <li key={domain.fqdn}>
@@ -374,9 +400,10 @@ export function DomainCard({
               </section>
 
               <section className="min-h-0 overflow-y-auto bg-zinc-50 p-3">
-                <p className="mb-2 text-[10px] font-bold uppercase tracking-wide text-zinc-500">
-                  Powered by SerpApi
-                </p>
+                <ColumnHeader
+                  title={conflictSectionTitle(conflicts, conflictsLoading, Boolean(selectedDomain))}
+                  poweredBy="Powered by SerpApi"
+                />
                 {selectedDomain ? (
                   conflictsLoading ? (
                     <div className="flex items-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 py-4 text-sm text-zinc-500">
