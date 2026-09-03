@@ -21,21 +21,21 @@ type AvailabilityResponse = {
   results?: NamecomSearchResult[];
 };
 
-import { isLiveIntegrations, namecomEnvironment } from "./integrations";
+import { namecomEnvironment } from "./integrations";
 
 export function getNamecomConfig(): NamecomConfig | null {
-  const live = isLiveIntegrations();
   const environment = namecomEnvironment();
+  const production = environment === "production";
 
-  const user = live
+  const user = production
     ? process.env.NAMECOM_PRODUCTION_USER?.trim()
     : process.env.NAMECOM_SANDBOX_USER?.trim();
-  const token = live
+  const token = production
     ? process.env.NAMECOM_PRODUCTION_TOKEN?.trim()
     : process.env.NAMECOM_SANDBOX_TOKEN?.trim();
-  const defaultUrl = live ? "https://api.name.com" : "https://api.dev.name.com";
+  const defaultUrl = production ? "https://api.name.com" : "https://api.dev.name.com";
   const baseUrl =
-    (live ? process.env.NAMECOM_PRODUCTION_URL : process.env.NAMECOM_SANDBOX_URL)?.trim() ||
+    (production ? process.env.NAMECOM_PRODUCTION_URL : process.env.NAMECOM_SANDBOX_URL)?.trim() ||
     defaultUrl;
 
   if (user && token) {

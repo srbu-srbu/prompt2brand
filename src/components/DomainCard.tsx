@@ -262,7 +262,7 @@ export function DomainCard({
   const [conflictsLoading, setConflictsLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [moreMessage, setMoreMessage] = useState<string | null>(null);
-  const [liveIntegrations, setLiveIntegrations] = useState<boolean | null>(null);
+  const [liveIntegrationsMode, setLiveIntegrationsMode] = useState<0 | 1 | 2 | null>(null);
   const showLaunchStatus =
     Boolean(published) || (launchUiPhase === "status" && Boolean(launchPreview));
   const showLaunchSpinner = launchUiPhase === "spinner" && Boolean(launchPreview);
@@ -272,11 +272,14 @@ export function DomainCard({
     let cancelled = false;
     void fetch("/api/health")
       .then((res) => (res.ok ? res.json() : null))
-      .then((data: { liveIntegrations?: boolean } | null) => {
-        if (!cancelled && data) setLiveIntegrations(Boolean(data.liveIntegrations));
+      .then((data: { liveIntegrationsMode?: number } | null) => {
+        if (!cancelled && data && typeof data.liveIntegrationsMode === "number") {
+          const mode = data.liveIntegrationsMode;
+          if (mode === 0 || mode === 1 || mode === 2) setLiveIntegrationsMode(mode);
+        }
       })
       .catch(() => {
-        if (!cancelled) setLiveIntegrations(null);
+        if (!cancelled) setLiveIntegrationsMode(null);
       });
     return () => {
       cancelled = true;
@@ -475,13 +478,17 @@ export function DomainCard({
                 >
                   {launching ? "Launching..." : "Launch brand"}
                 </Button>
-                {liveIntegrations !== null ? (
+                {liveIntegrationsMode !== null ? (
                   <p className="shrink-0 text-sm text-zinc-600">
                     Live Integration:{" "}
                     <span
-                      className={liveIntegrations ? "font-medium text-emerald-700" : "font-medium text-zinc-500"}
+                      className={
+                        liveIntegrationsMode === 0
+                          ? "font-medium text-zinc-500"
+                          : "font-medium text-emerald-700"
+                      }
                     >
-                      {liveIntegrations ? "On" : "Off"}
+                      {liveIntegrationsMode === 0 ? "Off (0)" : `On (${liveIntegrationsMode})`}
                     </span>
                   </p>
                 ) : null}
