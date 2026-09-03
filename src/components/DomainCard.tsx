@@ -194,11 +194,13 @@ function LaunchStatusPanel({
   hostedUrl,
   siteId,
   launching,
+  productionDomain,
 }: {
   domainFqdn: string;
   hostedUrl: string | null;
   siteId: string | null;
   launching: boolean;
+  productionDomain: boolean;
 }) {
   const polled = useLaunchStatus(siteId);
   const hostingStatus = siteId ? polled.hostingStatus : "pending";
@@ -206,6 +208,14 @@ function LaunchStatusPanel({
   const resolvedHostedUrl = hostedUrl ?? polled.hostedUrl;
   const overall = overallLaunchStatus(hostingStatus, domainStatus);
   const allLive = overall === "live";
+
+  const statusHint = productionDomain
+    ? allLive
+      ? "Your Vercel link is ready. Your custom domain is registered — DNS and SSL usually finish within about 15 minutes."
+      : "Status updates below as hosting and DNS finish."
+    : allLive
+      ? "Both links are ready — open them in a new tab."
+      : "Status updates below as hosting and DNS finish.";
 
   return (
     <div className="launch-status-enter p-4">
@@ -215,11 +225,7 @@ function LaunchStatusPanel({
           {allLive ? "Your brand is live" : "Your brand is launching"}
         </h2>
       </div>
-      <p className="mt-1 text-sm text-zinc-500">
-        {allLive
-          ? "Both links are ready — open them in a new tab."
-          : "Status updates below as hosting and DNS finish."}
-      </p>
+      <p className="mt-1 text-sm text-zinc-500">{statusHint}</p>
 
       <ul className="mt-4 space-y-4">
         <LaunchStatusRow
@@ -228,12 +234,20 @@ function LaunchStatusPanel({
           urlLabel={resolvedHostedUrl ?? "Preparing your Vercel URL…"}
           steps={hostingSteps(launching, hostingStatus)}
         />
-        <LaunchStatusRow
-          status={domainStatus}
-          url={domainFqdn}
-          urlLabel={domainFqdn}
-          steps={domainSteps(launching, domainStatus)}
-        />
+        <li>
+          <LaunchStatusRow
+            status={domainStatus}
+            url={domainFqdn}
+            urlLabel={domainFqdn}
+            steps={domainSteps(launching, domainStatus)}
+          />
+          {productionDomain ? (
+            <p className="mt-2 pl-6 text-xs leading-relaxed text-zinc-500">
+              If <span className="font-medium text-zinc-600">{domainFqdn}</span> does not load yet,
+              check back in about 15 minutes while DNS and SSL propagate.
+            </p>
+          ) : null}
+        </li>
       </ul>
     </div>
   );
@@ -354,6 +368,7 @@ export function DomainCard({
             hostedUrl={published?.hostedUrl ?? null}
             siteId={published?.siteId ?? null}
             launching={Boolean(launching && !published)}
+            productionDomain={liveIntegrationsMode === 2}
           />
         ) : (
           <>

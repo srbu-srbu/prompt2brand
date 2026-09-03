@@ -75,7 +75,7 @@ On **Launch brand** (website + domain confirmed):
 
 1. **Save** wrapped HTML to **Neon Postgres**
 2. **Kick off** Vercel Deploy API (non-blocking in handler; status polled client-side)
-3. **Register** domain via name.com + create `www` CNAME to Vercel hostname
+3. **Register** domain via name.com + DNS (sandbox: `www` CNAME to `p2b-*.vercel.app`; production mode `2`: Vercel custom domain + apex A + `www` CNAME from Vercel config)
 
 Until Launch brand, everything stays in **client draft** (React state + `sessionStorage`). No backend write while prompting or picking a domain.
 

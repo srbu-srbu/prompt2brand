@@ -177,9 +177,8 @@ export async function createDnsRecord(input: {
   });
 }
 
-export async function registerDomainWithDns(input: {
+async function purchaseDomain(input: {
   fqdn: string;
-  hostedUrl: string;
   idempotencyKey: string;
 }): Promise<void> {
   const availability = await checkDomainAvailability([input.fqdn]);
@@ -200,6 +199,32 @@ export async function registerDomainWithDns(input: {
     purchaseType: match.purchaseType,
     idempotencyKey: input.idempotencyKey,
   });
+}
+
+export async function applyDnsRecords(
+  fqdn: string,
+  records: Array<{ host: string; type: "A" | "CNAME" | "TXT"; answer: string }>,
+): Promise<void> {
+  for (const record of records) {
+    await createDnsRecord({ fqdn, ...record });
+  }
+}
+
+export async function registerDomainWithRecords(input: {
+  fqdn: string;
+  idempotencyKey: string;
+  records: Array<{ host: string; type: "A" | "CNAME"; answer: string }>;
+}): Promise<void> {
+  await purchaseDomain({ fqdn: input.fqdn, idempotencyKey: input.idempotencyKey });
+  await applyDnsRecords(input.fqdn, input.records);
+}
+
+export async function registerDomainWithDns(input: {
+  fqdn: string;
+  hostedUrl: string;
+  idempotencyKey: string;
+}): Promise<void> {
+  await purchaseDomain({ fqdn: input.fqdn, idempotencyKey: input.idempotencyKey });
 
   const targetHost = new URL(input.hostedUrl).hostname;
   const cnameTarget = targetHost.endsWith(".") ? targetHost : `${targetHost}.`;

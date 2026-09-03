@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import type { BrandKit, PageDraft } from "../_lib/types";
-import { hasNamecomConfig, registerDomainWithDns } from "../_lib/namecom";
+import { hasNamecomConfig, registerDomainWithDns, registerDomainWithRecords } from "../_lib/namecom";
+import { getLiveIntegrationsMode } from "../_lib/integrations";
 import {
   createSiteId,
   hostedUrlForSite,
@@ -8,7 +9,11 @@ import {
   updateSiteDomainStatus,
   updateSiteHosting,
 } from "../_lib/sites";
-import { createSiteDeployment, hasVercelDeployConfig } from "../_lib/vercelDeploy";
+import {
+  createSiteDeployment,
+  hasVercelDeployConfig,
+  setupProductionCustomDomain,
+} from "../_lib/vercelDeploy";
 
 type PublishBody = {
   draft?: {
@@ -99,11 +104,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (hasNamecomConfig()) {
       try {
-        await registerDomainWithDns({
-          fqdn: domainFqdn,
-          hostedUrl: dnsTargetUrl,
-          idempotencyKey: siteId,
-        });
+        const useProductionCustomDomain =
+          getLiveIntegrationsMode() === 2 && Boolean(vercelDeploymentId) && hasVercelDeployConfig();
+
+        if (useProductionCustomDomain) {
+          const dnsSetup = await setupProductionCustomDomain({ siteId, fqdn: domainFqdn });
+          await registerDomainWithRecords({
+            fqdn: domainFqdn,
+            idempotencyKey: siteId,
+            records: dnsSetup.records,
+          });
+        } else {
+          await registerDomainWithDns({
+            fqdn: domainFqdn,
+            hostedUrl: dnsTargetUrl,
+            idempotencyKey: siteId,
+          });
+        }
         domainStatus = "live";
         domainSource = "namecom";
       } catch (error) {

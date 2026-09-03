@@ -42,8 +42,20 @@ function getVercelConfig(): VercelConfig | null {
   return { token, teamId: teamId || undefined };
 }
 
+function buildTeamQuery(config: VercelConfig, extra?: Record<string, string | undefined>): string {
+  const params = new URLSearchParams();
+  if (config.teamId) params.set("teamId", config.teamId);
+  if (extra) {
+    for (const [key, value] of Object.entries(extra)) {
+      if (value) params.set(key, value);
+    }
+  }
+  const qs = params.toString();
+  return qs ? `?${qs}` : "";
+}
+
 function teamQuery(config: VercelConfig): string {
-  return config.teamId ? `?teamId=${encodeURIComponent(config.teamId)}` : "";
+  return buildTeamQuery(config);
 }
 
 async function vercelFetch<T>(
@@ -129,6 +141,104 @@ export async function disableProjectSsoProtection(projectIdOrName: string): Prom
     config,
     body: JSON.stringify({ ssoProtection: null }),
   });
+}
+
+type DomainConfigResponse = {
+  recommendedIPv4?: Array<{ rank: number; value: string[] }>;
+  recommendedCNAME?: Array<{ rank: number; value: string }>;
+  misconfigured?: boolean;
+};
+
+export type ProductionDnsRecord = {
+  host: string;
+  type: "A" | "CNAME";
+  answer: string;
+};
+
+function splitApexAndWww(fqdn: string): { apexFqdn: string; wwwFqdn: string } {
+  const normalized = fqdn.trim().toLowerCase();
+  if (normalized.startsWith("www.")) {
+    const apexFqdn = normalized.slice(4);
+    return { apexFqdn, wwwFqdn: normalized };
+  }
+  return { apexFqdn: normalized, wwwFqdn: `www.${normalized}` };
+}
+
+function preferredRank1<T extends { rank: number }>(items: T[] | undefined): T | undefined {
+  if (!items?.length) return undefined;
+  return items.find((item) => item.rank === 1) ?? items[0];
+}
+
+async function addProjectDomain(projectIdOrName: string, domainName: string): Promise<void> {
+  const config = getVercelConfig();
+  if (!config) {
+    throw new Error("VERCEL_TOKEN is required");
+  }
+
+  try {
+    await vercelFetch(`/v10/projects/${encodeURIComponent(projectIdOrName)}/domains${teamQuery(config)}`, {
+      method: "POST",
+      config,
+      body: JSON.stringify({ name: domainName }),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    if (message.includes(" 409") || message.toLowerCase().includes("already")) {
+      return;
+    }
+    throw error;
+  }
+}
+
+async function getDomainConfig(domain: string, projectIdOrName: string): Promise<DomainConfigResponse> {
+  const config = getVercelConfig();
+  if (!config) {
+    throw new Error("VERCEL_TOKEN is required");
+  }
+
+  return vercelFetch<DomainConfigResponse>(
+    `/v6/domains/${encodeURIComponent(domain)}/config${buildTeamQuery(config, {
+      projectIdOrName,
+    })}`,
+    { config },
+  );
+}
+
+/** Register apex + www on the launch project and return name.com DNS targets (mode 2). */
+export async function setupProductionCustomDomain(input: {
+  siteId: string;
+  fqdn: string;
+}): Promise<{ records: ProductionDnsRecord[] }> {
+  const { apexFqdn, wwwFqdn } = splitApexAndWww(input.fqdn);
+
+  await addProjectDomain(input.siteId, apexFqdn);
+  if (wwwFqdn !== apexFqdn) {
+    await addProjectDomain(input.siteId, wwwFqdn);
+  }
+
+  const [apexConfig, wwwConfig] = await Promise.all([
+    getDomainConfig(apexFqdn, input.siteId),
+    getDomainConfig(wwwFqdn, input.siteId),
+  ]);
+
+  const apexIp = preferredRank1(apexConfig.recommendedIPv4)?.value?.[0];
+  const wwwCname = preferredRank1(wwwConfig.recommendedCNAME)?.value;
+
+  if (!apexIp) {
+    throw new Error(`Vercel did not return an apex A record target for ${apexFqdn}`);
+  }
+  if (!wwwCname) {
+    throw new Error(`Vercel did not return a www CNAME target for ${wwwFqdn}`);
+  }
+
+  const cnameAnswer = wwwCname.endsWith(".") ? wwwCname : `${wwwCname}.`;
+
+  return {
+    records: [
+      { host: "@", type: "A", answer: apexIp },
+      { host: "www", type: "CNAME", answer: cnameAnswer },
+    ],
+  };
 }
 
 export async function createSiteDeployment(input: {
