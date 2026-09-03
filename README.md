@@ -56,4 +56,6 @@ shared/        Types and logic shared between app and API
 
 ## License
 
-Hackathon project — see repo owner for terms.
+Copyright © 2026 Miliojen LLC. All rights reserved.
+
+Hackathon submission for DevNetwork 2026. Source is public for judging; not licensed for commercial reuse unless otherwise agreed.
