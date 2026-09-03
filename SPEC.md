@@ -420,7 +420,7 @@ Redact keys/tokens before upload.
 ### Optional stretch
 
 - [ ] name.com production credits; one real domain registration
-- [ ] Disable Vercel Deployment Protection on `p2b-*.vercel.app` before recording
+- [ ] New launches expose public `p2b-*.vercel.app` URLs (SSO cleared automatically; verify in incognito)
 - [ ] Re-record video if real domain goes live
 
 ### Pre-submit smoke test
@@ -437,7 +437,7 @@ Redact keys/tokens before upload.
 - No auth, billing, or return-visit editing
 - `safePublish` client fallback on API failure returns mock pending site (edge case)
 - SerpApi 1-hour cache may show stale conflicts during rapid retesting
-- Vercel Deployment Protection may block anonymous access to `p2b-*.vercel.app` URLs
+- Vercel Deployment Protection on new `p2b-*` projects is cleared via `ssoProtection: null` after Deploy API launch
 - LLM gateway rate limits → generate may fall back to preserving current draft
 
 ---

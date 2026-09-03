@@ -117,6 +117,20 @@ export function hostedUrlFromDeployment(deployment: DeploymentResponse, siteId: 
   return `https://${preferred.replace(/^https?:\/\//, "")}`;
 }
 
+/** New Deploy API projects inherit team SSO protection; customer sites must be public. */
+export async function disableProjectSsoProtection(projectIdOrName: string): Promise<void> {
+  const config = getVercelConfig();
+  if (!config) {
+    throw new Error("VERCEL_TOKEN is required");
+  }
+
+  await vercelFetch(`/v9/projects/${encodeURIComponent(projectIdOrName)}${teamQuery(config)}`, {
+    method: "PATCH",
+    config,
+    body: JSON.stringify({ ssoProtection: null }),
+  });
+}
+
 export async function createSiteDeployment(input: {
   siteId: string;
   pages: PageDraft[];
@@ -154,6 +168,12 @@ export async function createSiteDeployment(input: {
 
   if (!deployment.id) {
     throw new Error("Vercel deployment response did not include an id");
+  }
+
+  try {
+    await disableProjectSsoProtection(input.siteId);
+  } catch (error) {
+    console.error("vercel disable SSO protection failed", error);
   }
 
   return {
