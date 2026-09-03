@@ -8,7 +8,6 @@ export const ALLOWED_TLDS = new Set([
   "app",
   "dev",
   "xyz",
-  "shop",
   "store",
   "online",
   "info",
@@ -72,7 +71,7 @@ export function extractTldsFromPrompt(prompt: string): string[] {
   }
 
   for (const match of prompt.matchAll(
-    /\b(com|org|net|app|dev|xyz|shop|store|online|info|biz)\b/gi,
+    /\b(com|org|net|app|dev|xyz|store|online|info|biz)\b/gi,
   )) {
     const tld = match[1].toLowerCase();
     if (ALLOWED_TLDS.has(tld)) found.add(tld);
