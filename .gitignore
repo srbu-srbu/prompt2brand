@@ -27,5 +27,3 @@ Thumbs.db
 
 # Local one-off patch scripts (not part of the app)
 scripts/
-
-.vercel
