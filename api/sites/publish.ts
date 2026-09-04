@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import type { BrandKit, PageDraft } from "../_lib/types";
 import { hasNamecomConfig, registerDomainWithDns, registerDomainWithRecords } from "../_lib/namecom";
-import { getLiveIntegrationsMode } from "../_lib/integrations";
+import { getLiveIntegrationsMode, useVercelHosting } from "../_lib/integrations";
 import {
   createSiteId,
   hostedUrlForSite,
@@ -69,7 +69,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       hostingStatus: "pending",
     });
 
-    if (hasVercelDeployConfig()) {
+    const integrationMode = getLiveIntegrationsMode();
+    const deployToVercel = useVercelHosting() && hasVercelDeployConfig();
+
+    if (deployToVercel) {
       try {
         const deployment = await createSiteDeployment({ siteId, pages, brandKit });
         vercelDeploymentId = deployment.deploymentId;
@@ -105,7 +108,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (hasNamecomConfig()) {
       try {
         const useProductionCustomDomain =
-          getLiveIntegrationsMode() === 2 && Boolean(vercelDeploymentId) && hasVercelDeployConfig();
+          integrationMode === 4 && Boolean(vercelDeploymentId) && hasVercelDeployConfig();
 
         if (useProductionCustomDomain) {
           const dnsSetup = await setupProductionCustomDomain({ siteId, fqdn: domainFqdn });

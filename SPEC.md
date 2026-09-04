@@ -75,7 +75,7 @@ On **Launch brand** (website + domain confirmed):
 
 1. **Save** wrapped HTML to **Neon Postgres**
 2. **Kick off** Vercel Deploy API (non-blocking in handler; status polled client-side)
-3. **Register** domain via name.com + DNS (sandbox: `www` CNAME to `p2b-*.vercel.app`; production mode `2`: Vercel custom domain + apex A + `www` CNAME from Vercel config)
+3. **Register** domain via name.com + DNS (modes 0–3: `www` CNAME to hosted URL; mode `4`: Vercel custom domain + apex A + `www` CNAME from Vercel config)
 
 Until Launch brand, everything stays in **client draft** (React state + `sessionStorage`). No backend write while prompting or picking a domain.
 
@@ -102,16 +102,17 @@ Until Launch brand, everything stays in **client draft** (React state + `session
 
 Controlled in `api/_lib/integrations.ts`:
 
-| `P2B_LIVE_INTEGRATIONS` | name.com | SerpApi |
-|-------------------------|----------|---------|
-| `0` (default, demo-safe) | Sandbox (`api.dev.name.com`, `*-test` user) | Mock (all Clear) |
-| `1` | Sandbox (`api.dev.name.com`) | Live (if `SERPAPI_KEY` set) |
-| `2` | Production (`api.name.com`) | Live (if `SERPAPI_KEY` set) |
+| `P2B_LIVE_INTEGRATIONS` | Hosting | name.com | SerpApi |
+|-------------------------|---------|----------|---------|
+| `0` (default, demo-safe) | Postgres fallback URL | Sandbox | Mock (all Clear) |
+| `1` | Vercel (`p2b-*.vercel.app`) | Sandbox | Mock (all Clear) |
+| `3` | Vercel | Sandbox | Live (if `SERPAPI_KEY` set) |
+| `4` | Vercel + custom domain DNS | Production (`api.name.com`) | Live (if `SERPAPI_KEY` set) |
 
 Env var sets are dual-configured in `.env.example`:
 
-- `NAMECOM_SANDBOX_*` — used when flag = 0 or 1
-- `NAMECOM_PRODUCTION_*` — used when flag = 2
+- `NAMECOM_SANDBOX_*` — used when flag = 0, 1, or 3
+- `NAMECOM_PRODUCTION_*` — used when flag = 4
 
 **name.com billing:** Search and Check Availability are free API calls. **Create Domain** (on Launch) charges account credit or default payment method. With $0 balance and no card, registration returns `402 Payment Required`; hosting may still succeed.
 
@@ -375,7 +376,7 @@ Provision via [Vercel Marketplace → Neon](https://vercel.com/marketplace/neon)
 
 ## Devpost submission checklist (internal)
 
-Submit sandbox-first (`P2B_LIVE_INTEGRATIONS=0`). Use `1` for live SerpApi evidence (sandbox name.com); use `2` for production name.com registration evidence.
+Submit sandbox-first (`P2B_LIVE_INTEGRATIONS=0` or `1`). Use `3` for live SerpApi + Vercel; use `4` for production name.com registration.
 
 ### Devpost page
 
@@ -408,7 +409,7 @@ Redact keys/tokens before upload.
 
 ### SerpApi evidence
 
-- [ ] Screenshot: conflict column with platform labels (set `P2B_LIVE_INTEGRATIONS=1` or `2`)
+- [ ] Screenshot: conflict column with platform labels (set `P2B_LIVE_INTEGRATIONS=3` or `4`)
 - [ ] Caption: *"Live web data via SerpApi for brand conflict checks."*
 
 ### Repo
@@ -428,7 +429,7 @@ Redact keys/tokens before upload.
 - [ ] Prompt → preview → domain tab → select domain → conflicts → launch → status live
 - [ ] Fallback URL works if Vercel deploy pending
 - [ ] name.com sandbox register + DNS in server logs
-- [ ] SerpApi returns results (flag = 1)
+- [ ] SerpApi returns results (flag = 3)
 
 ---
 
