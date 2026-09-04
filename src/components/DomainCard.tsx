@@ -276,7 +276,7 @@ export function DomainCard({
   const [conflictsLoading, setConflictsLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [moreMessage, setMoreMessage] = useState<string | null>(null);
-  const [liveIntegrationsMode, setLiveIntegrationsMode] = useState<0 | 1 | 3 | 4 | null>(null);
+  const [liveIntegrationsMode, setLiveIntegrationsMode] = useState<0 | 1 | 2 | 3 | null>(null);
   const showLaunchStatus =
     Boolean(published) || (launchUiPhase === "status" && Boolean(launchPreview));
   const showLaunchSpinner = launchUiPhase === "spinner" && Boolean(launchPreview);
@@ -289,7 +289,7 @@ export function DomainCard({
       .then((data: { liveIntegrationsMode?: number } | null) => {
         if (!cancelled && data && typeof data.liveIntegrationsMode === "number") {
           const mode = data.liveIntegrationsMode;
-          if (mode === 0 || mode === 1 || mode === 3 || mode === 4) setLiveIntegrationsMode(mode);
+          if (mode === 0 || mode === 1 || mode === 2 || mode === 3) setLiveIntegrationsMode(mode);
         }
       })
       .catch(() => {
@@ -368,7 +368,7 @@ export function DomainCard({
             hostedUrl={published?.hostedUrl ?? null}
             siteId={published?.siteId ?? null}
             launching={Boolean(launching && !published)}
-            productionDomain={liveIntegrationsMode === 4}
+            productionDomain={liveIntegrationsMode === 3}
           />
         ) : (
           <>

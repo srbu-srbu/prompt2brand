@@ -106,13 +106,13 @@ Controlled in `api/_lib/integrations.ts`:
 |-------------------------|---------|----------|---------|
 | `0` (default, demo-safe) | Postgres fallback URL | Sandbox | Mock (all Clear) |
 | `1` | Vercel (`p2b-*.vercel.app`) | Sandbox | Mock (all Clear) |
-| `3` | Vercel | Sandbox | Live (if `SERPAPI_KEY` set) |
-| `4` | Vercel + custom domain DNS | Production (`api.name.com`) | Live (if `SERPAPI_KEY` set) |
+| `2` | Vercel | Sandbox | Live (if `SERPAPI_KEY` set) |
+| `3` | Vercel + custom domain DNS | Production (`api.name.com`) | Live (if `SERPAPI_KEY` set) |
 
 Env var sets are dual-configured in `.env.example`:
 
-- `NAMECOM_SANDBOX_*` — used when flag = 0, 1, or 3
-- `NAMECOM_PRODUCTION_*` — used when flag = 4
+- `NAMECOM_SANDBOX_*` — used when flag = 0, 1, or 2
+- `NAMECOM_PRODUCTION_*` — used when flag = 3
 
 **name.com billing:** Search and Check Availability are free API calls. **Create Domain** (on Launch) charges account credit or default payment method. With $0 balance and no card, registration returns `402 Payment Required`; hosting may still succeed.
 
@@ -376,7 +376,7 @@ Provision via [Vercel Marketplace → Neon](https://vercel.com/marketplace/neon)
 
 ## Devpost submission checklist (internal)
 
-Submit sandbox-first (`P2B_LIVE_INTEGRATIONS=0` or `1`). Use `3` for live SerpApi + Vercel; use `4` for production name.com registration.
+Submit sandbox-first (`P2B_LIVE_INTEGRATIONS=0` or `1`). Use `2` for live SerpApi + Vercel; use `3` for production name.com registration.
 
 ### Devpost page
 
@@ -409,7 +409,7 @@ Redact keys/tokens before upload.
 
 ### SerpApi evidence
 
-- [ ] Screenshot: conflict column with platform labels (set `P2B_LIVE_INTEGRATIONS=3` or `4`)
+- [ ] Screenshot: conflict column with platform labels (set `P2B_LIVE_INTEGRATIONS=2` or `3`)
 - [ ] Caption: *"Live web data via SerpApi for brand conflict checks."*
 
 ### Repo

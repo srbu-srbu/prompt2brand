@@ -204,7 +204,7 @@ async function getDomainConfig(domain: string, projectIdOrName: string): Promise
   );
 }
 
-/** Register apex + www on the launch project and return name.com DNS targets (mode 4). */
+/** Register apex + www on the launch project and return name.com DNS targets (mode 3). */
 export async function setupProductionCustomDomain(input: {
   siteId: string;
   fqdn: string;

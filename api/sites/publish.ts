@@ -108,7 +108,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (hasNamecomConfig()) {
       try {
         const useProductionCustomDomain =
-          integrationMode === 4 && Boolean(vercelDeploymentId) && hasVercelDeployConfig();
+          integrationMode === 3 && Boolean(vercelDeploymentId) && hasVercelDeployConfig();
 
         if (useProductionCustomDomain) {
           const dnsSetup = await setupProductionCustomDomain({ siteId, fqdn: domainFqdn });

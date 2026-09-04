@@ -22,9 +22,9 @@ Copy `.env.example` to `.env.local` and fill in credentials. See **[SPEC.md](./S
 |----------|---------|
 | `AI_GATEWAY_API_KEY` | Vercel AI Gateway (Gemini) for site + domain brainstorm |
 | `POSTGRES_URL` | Neon Postgres (site HTML storage) |
-| `P2B_LIVE_INTEGRATIONS` | `0` = sandbox + Postgres link + mock SerpApi; `1` = sandbox + Vercel + mock SerpApi; `3` = sandbox + Vercel + live SerpApi; `4` = production name.com + Vercel + live SerpApi |
+| `P2B_LIVE_INTEGRATIONS` | `0` = sandbox + Postgres link + mock SerpApi; `1` = sandbox + Vercel + mock SerpApi; `2` = sandbox + Vercel + live SerpApi; `3` = production name.com + Vercel + live SerpApi |
 | `NAMECOM_SANDBOX_*` / `NAMECOM_PRODUCTION_*` | name.com API credentials |
-| `SERPAPI_KEY` | SerpApi (when `P2B_LIVE_INTEGRATIONS=3` or `4`) |
+| `SERPAPI_KEY` | SerpApi (when `P2B_LIVE_INTEGRATIONS=2` or `3`) |
 | `VERCEL_TOKEN` | Vercel Deploy API (one static project per launch) |
 
 Full list and behavior: `.env.example` and [SPEC.md § Integrations](./SPEC.md).
