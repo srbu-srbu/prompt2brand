@@ -69,6 +69,10 @@ export function publishedHrefForSlug(slug: string): string {
   return slug === "home" ? "/" : `/${slug}`;
 }
 
+export function fallbackHrefForSlug(siteId: string, slug: string): string {
+  return `/api/sites/${siteId}/${slug}`;
+}
+
 export function rewriteInternalHrefs(
   bodyHtml: string,
   pages: PageLinkMeta[],
@@ -112,6 +116,15 @@ export function rewriteInternalHrefs(
 export function preparePublishedHtml(bodyHtml: string, pages: PageLinkMeta[]): string {
   const cleaned = bodyHtml.replace(/\sdata-p2b-slug=(["'])[^"']*\1/gi, "");
   return rewriteInternalHrefs(cleaned, pages, publishedHrefForSlug);
+}
+
+/** Rewrite published root paths for Postgres fallback serving under /api/sites/{siteId}/… */
+export function prepareFallbackHtml(
+  html: string,
+  pages: PageLinkMeta[],
+  siteId: string,
+): string {
+  return rewriteInternalHrefs(html, pages, (slug) => fallbackHrefForSlug(siteId, slug));
 }
 
 export function preparePreviewHtml(bodyHtml: string, pages: PageLinkMeta[]): string {

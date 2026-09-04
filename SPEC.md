@@ -63,7 +63,8 @@ Each page is an HTML **fragment** in draft (`bodyHtml`). At publish, `wrapPage()
 | Context | Nav links |
 |---------|-----------|
 | **Preview iframe** | LLM may emit `#about` hash links → rewritten to `#p2b:slug` at render time |
-| **Published site** | `preparePublishedHtml()` rewrites hash/slug links to clean paths `/about` before deploy |
+| **Published site (Vercel)** | `preparePublishedHtml()` rewrites hash/slug links to clean paths `/about` before deploy |
+| **Postgres fallback serve** | `prepareFallbackHtml()` rewrites those links to `/api/sites/{siteId}/{slug}` at request time |
 
 This avoids broken multi-page nav when the LLM generates hash links but the deployed site uses path-based routing.
 

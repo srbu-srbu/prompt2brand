@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { getPageHtml, getSiteById } from "../../_lib/sites";
+import { getPageHtml, getSiteById, getSitePageMeta } from "../../_lib/sites";
+import { prepareFallbackHtml } from "../../../shared/internalLinks";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "GET") {
@@ -22,15 +23,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return;
     }
 
-    const html = await getPageHtml(siteId, slug);
+    const [html, pages] = await Promise.all([
+      getPageHtml(siteId, slug),
+      getSitePageMeta(siteId),
+    ]);
     if (!html) {
       res.status(404).send("Page not found");
       return;
     }
 
+    const servedHtml = pages.length > 0 ? prepareFallbackHtml(html, pages, siteId) : html;
+
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     res.setHeader("Cache-Control", "public, max-age=60");
-    res.status(200).send(html);
+    res.status(200).send(servedHtml);
   } catch (error) {
     console.error("serve page failed", error);
     res.status(500).send("Failed to load page");

@@ -109,6 +109,17 @@ export async function getSiteById(siteId: string): Promise<SiteRow | null> {
   return row ?? null;
 }
 
+export async function getSitePageMeta(siteId: string): Promise<{ slug: string; title: string }[]> {
+  const sql = getSql();
+  const rows = await sql`
+    SELECT slug, title
+    FROM site_pages
+    WHERE site_id = ${siteId}
+    ORDER BY slug
+  `;
+  return rows as { slug: string; title: string }[];
+}
+
 export async function getPageHtml(siteId: string, slug: string): Promise<string | null> {
   const sql = getSql();
   const rows = await sql`
