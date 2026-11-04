@@ -12,7 +12,7 @@
 
 **Pre-event baseline:** tag `v0.1.0-pre-meta` — React/Vite UI, name.com, SerpApi, Vercel launch pipeline (prior PoC).
 
-**Built during the event (Oct 26 – Nov 4, 2026):** Meta Model API integration — `muse-spark-1.3` for site generation and domain brainstorm via `api/_lib/metaModelApi.ts`. Commits after `v0.1.0-pre-meta` document that scope.
+**Built during the event (Oct 26 – Nov 4, 2026):** Meta Model API integration for site generation and domain brainstorm via `api/_lib/metaModelApi.ts` (default model `muse-wonder-1.0`, env `META_MODEL`). Commits after `v0.1.0-pre-meta` document that scope.
 
 **Hard rule:** Hackathon and sponsor references stay in README/SPEC and demo narration — not in generated customer site HTML.
 
@@ -131,7 +131,7 @@ User prompt (+ brand name, tagline, page titles)
         ↓
 POST /api/domains/suggest  OR  /api/domains/suggest/more
         ↓
-domainBrainstorm.ts  →  Meta Model API (muse-spark-1.3)
+domainBrainstorm.ts  →  Meta Model API (META_MODEL / muse-wonder-1.0)
    returns: { stems: ["miliojen"], preferredTlds: ["dev", "xyz"], summary }
    fallback: domainPromptParse.ts (extract brand stem + TLDs from prompt — never whole sentence)
         ↓
@@ -247,7 +247,7 @@ Prompt (site tab) → preview builds (sessionStorage draft)
 | HTML storage | Neon Postgres via Vercel Marketplace |
 | Live hosting | Vercel Deploy API (primary) + DB serve (fallback) |
 | Draft | React state + `sessionStorage` |
-| Site generation LLM | Meta Model API → `muse-spark-1.3` |
+| Site generation LLM | Meta Model API → `META_MODEL` (default `muse-wonder-1.0`) |
 | Domain brainstorm LLM | Same Meta model |
 | Domains | name.com Core API (sandbox or production) |
 | Brand conflicts | SerpApi Google search (live or mock) |
@@ -389,7 +389,7 @@ Provision via [Vercel Marketplace → Neon](https://vercel.com/marketplace/neon)
 ## Resolved decisions (was open questions)
 
 1. **Preview trigger:** submit on Enter/send (not debounced pause)
-2. **LLM provider:** Meta Model API + `muse-spark-1.3` (`MODEL_API_KEY`)
+2. **LLM provider:** Meta Model API + `META_MODEL` (`MODEL_API_KEY`)
 3. **Domain conflicts:** async on select, not bundled in suggest response
 4. **Launch UI:** in-card status panel, not separate done page
 

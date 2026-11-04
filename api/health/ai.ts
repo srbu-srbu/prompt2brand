@@ -1,16 +1,36 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { META_SPARK_MODEL, getModelApiKey, hasModelApiConfig } from "../_lib/metaModelApi";
+import {
+  getMetaChatModel,
+  getModelApiKey,
+  hasModelApiConfig,
+} from "../_lib/metaModelApi";
+
+type ModelsListResponse = {
+  data?: Array<{ id?: string }>;
+};
 
 export default async function handler(_req: VercelRequest, res: VercelResponse) {
   const hasApiKey = hasModelApiConfig();
   const token = getModelApiKey();
+  const model = getMetaChatModel();
 
   let metaOk = false;
   let metaStatus = 0;
   let metaError = "";
+  let availableModels: string[] | undefined;
 
   if (token) {
     try {
+      const modelsResponse = await fetch("https://api.meta.ai/v1/models", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (modelsResponse.ok) {
+        const modelsData = (await modelsResponse.json()) as ModelsListResponse;
+        availableModels = (modelsData.data ?? [])
+          .map((entry) => entry.id)
+          .filter((id): id is string => Boolean(id));
+      }
+
       const response = await fetch("https://api.meta.ai/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -18,10 +38,9 @@ export default async function handler(_req: VercelRequest, res: VercelResponse) 
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: META_SPARK_MODEL,
+          model,
           messages: [{ role: "user", content: "Reply with OK only." }],
           max_completion_tokens: 16,
-          reasoning_effort: "low",
         }),
       });
       metaStatus = response.status;
@@ -34,10 +53,14 @@ export default async function handler(_req: VercelRequest, res: VercelResponse) 
     }
   }
 
+  const modelAvailable = availableModels ? availableModels.includes(model) : undefined;
+
   res.status(200).json({
     ok: metaOk,
     provider: "meta-model-api",
-    model: META_SPARK_MODEL,
+    model,
+    modelAvailable,
+    availableModels,
     auth: {
       hasApiKey,
       configured: Boolean(token),

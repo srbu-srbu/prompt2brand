@@ -179,7 +179,7 @@ export function mockFallback(input: GenerateSiteInput, error?: string): Generate
       summary: [
         "AI unavailable — kept your current preview.",
         `Latest cue: ${input.prompt.slice(0, 60)}`,
-        "Try again in a moment if the Meta Model API was rate-limited.",
+        error ? error.slice(0, 120) : "Try again in a moment if the Meta Model API was rate-limited.",
       ],
       source: "mock",
       error,
@@ -198,7 +198,7 @@ export function mockFallback(input: GenerateSiteInput, error?: string): Generate
     summary: [
       "AI unavailable — no preview generated.",
       `Latest cue: ${input.prompt.slice(0, 60)}`,
-      "Try again in a moment if the Meta Model API was rate-limited.",
+      error ? error.slice(0, 120) : "Try again in a moment if the Meta Model API was rate-limited.",
     ],
     source: "mock",
     error,
@@ -227,12 +227,16 @@ async function callMetaModel(input: GenerateSiteInput) {
   const content = await chatCompletion(
     [
       {
-        role: "system",
+        role: "developer",
         content: `${buildSystemPrompt()}\n\nRespond with JSON only (no markdown fences) matching this schema:\n${schemaHint}`,
       },
       { role: "user", content: buildUserPrompt(input) },
     ],
-    { reasoningEffort: "medium" },
+    {
+      reasoningEffort: "medium",
+      maxCompletionTokens: 16384,
+      stream: true,
+    },
   );
 
   return generateSiteSchema.parse(parseModelJson(content));

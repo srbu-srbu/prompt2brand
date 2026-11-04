@@ -2,6 +2,8 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { generateSite, mockFallback } from "./_lib/generateSite";
 import type { BrandKit, PageDraft } from "./_lib/types";
 
+export const maxDuration = 60;
+
 type GenerateRequestBody = {
   prompt?: string;
   draft?: {

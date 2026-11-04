@@ -26,6 +26,7 @@ export async function apiGenerate(
     pages: PageDraft[];
     summary: SummaryLines;
     source?: "llm" | "mock";
+    error?: string;
   }>;
 }
 
@@ -171,13 +172,31 @@ export async function safeGenerate(
 ) {
   try {
     const result = await apiGenerate(prompt, draft);
-    if ("source" in result && result.source === "mock") {
+    if (result.source === "mock") {
       console.warn("Generate used server mock fallback — check MODEL_API_KEY / logs");
+      if (result.error) {
+        return {
+          ...result,
+          summary: [
+            result.summary[0],
+            result.summary[1],
+            result.error.slice(0, 120),
+          ] satisfies SummaryLines,
+        };
+      }
     }
     return result;
-  } catch {
-    console.warn("Generate API failed, using client mock fallback");
-    return mockGenerate(prompt, draft);
+  } catch (error) {
+    console.warn("Generate API failed, using client mock fallback", error);
+    const fallback = await mockGenerate(prompt, draft);
+    return {
+      ...fallback,
+      summary: [
+        fallback.summary[0],
+        fallback.summary[1],
+        "Start vercel dev for API routes — npm run dev alone proxies /api to :3000 with no backend.",
+      ] satisfies SummaryLines,
+    };
   }
 }
 

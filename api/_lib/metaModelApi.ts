@@ -1,15 +1,28 @@
-export const META_SPARK_MODEL = "muse-spark-1.3";
+/** Default chat model for keys that expose Wonder but not Spark (see GET /v1/models). */
+export const META_DEFAULT_CHAT_MODEL = "muse-wonder-1.0";
 
-const META_CHAT_URL = "https://api.meta.ai/v1/chat/completions";
+const META_API_BASE = "https://api.meta.ai/v1";
+const META_CHAT_URL = `${META_API_BASE}/chat/completions`;
+
+export function getMetaChatModel(): string {
+  return process.env.META_MODEL?.trim() || META_DEFAULT_CHAT_MODEL;
+}
 
 export type ChatMessage = {
-  role: "system" | "user" | "assistant";
+  role: "system" | "user" | "assistant" | "developer";
   content: string;
 };
 
 type ChatCompletionResponse = {
-  choices?: Array<{ message?: { content?: string | null } }>;
+  choices?: Array<{ message?: { content?: unknown } }>;
   error?: { message?: string };
+};
+
+export type ChatCompletionOptions = {
+  reasoningEffort?: "minimal" | "low" | "medium" | "high";
+  maxCompletionTokens?: number;
+  /** Prefer streaming for long generations — avoids Meta non-streaming gateway timeouts. */
+  stream?: boolean;
 };
 
 export function getModelApiKey(): string | undefined {
@@ -27,9 +40,70 @@ export function parseModelJson(content: string): unknown {
   return JSON.parse(jsonText);
 }
 
+function extractMessageContent(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) {
+    return content
+      .map((part) => {
+        if (typeof part === "string") return part;
+        if (part && typeof part === "object" && "text" in part) {
+          const text = (part as { text?: string }).text;
+          return typeof text === "string" ? text : "";
+        }
+        return "";
+      })
+      .join("");
+  }
+  return "";
+}
+
+async function readStreamingChatContent(response: Response): Promise<string> {
+  if (!response.body) {
+    throw new Error("Meta Model API stream had no body");
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let content = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith("data:")) continue;
+      const payload = trimmed.slice(5).trim();
+      if (!payload || payload === "[DONE]") continue;
+
+      try {
+        const chunk = JSON.parse(payload) as ChatCompletionResponse;
+        const delta = (chunk as { choices?: Array<{ delta?: { content?: unknown } }> }).choices?.[0]
+          ?.delta?.content;
+        if (delta) {
+          content += extractMessageContent(delta);
+        }
+      } catch {
+        // Ignore malformed SSE chunks
+      }
+    }
+  }
+
+  if (!content) {
+    throw new Error("Meta Model API stream returned empty content");
+  }
+
+  return content;
+}
+
 export async function chatCompletion(
   messages: ChatMessage[],
-  options?: { reasoningEffort?: "low" | "medium" | "high" },
+  options?: ChatCompletionOptions,
 ): Promise<string> {
   const apiKey = getModelApiKey();
   if (!apiKey) {
@@ -37,13 +111,17 @@ export async function chatCompletion(
   }
 
   const body: Record<string, unknown> = {
-    model: META_SPARK_MODEL,
+    model: getMetaChatModel(),
     messages,
-    stream: false,
+    stream: Boolean(options?.stream),
   };
 
   if (options?.reasoningEffort) {
     body.reasoning_effort = options.reasoningEffort;
+  }
+
+  if (options?.maxCompletionTokens) {
+    body.max_completion_tokens = options.maxCompletionTokens;
   }
 
   const response = await fetch(META_CHAT_URL, {
@@ -51,16 +129,29 @@ export async function chatCompletion(
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
+      ...(options?.stream ? { Accept: "text/event-stream" } : {}),
     },
     body: JSON.stringify(body),
   });
 
-  const data = (await response.json()) as ChatCompletionResponse;
   if (!response.ok) {
-    throw new Error(data.error?.message ?? `Meta Model API failed (${response.status})`);
+    let message = `Meta Model API failed (${response.status})`;
+    try {
+      const data = (await response.json()) as ChatCompletionResponse;
+      message = data.error?.message ?? message;
+    } catch {
+      const text = await response.text().catch(() => "");
+      if (text) message = text.slice(0, 240);
+    }
+    throw new Error(message);
   }
 
-  const content = data.choices?.[0]?.message?.content;
+  if (options?.stream) {
+    return readStreamingChatContent(response);
+  }
+
+  const data = (await response.json()) as ChatCompletionResponse;
+  const content = extractMessageContent(data.choices?.[0]?.message?.content);
   if (!content) {
     throw new Error("Meta Model API returned empty content");
   }

@@ -173,7 +173,7 @@ export async function brainstormDomainKeywords(
           content: `${JSON.stringify(userPayload, null, 2)}\n\nRespond with JSON matching:\n${schemaHint}`,
         },
       ],
-      { reasoningEffort: "medium" },
+      { reasoningEffort: "medium", maxCompletionTokens: 2048 },
     );
 
     const parsed = domainBrainstormSchema.parse(parseModelJson(content));

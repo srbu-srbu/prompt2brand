@@ -4,7 +4,7 @@
 
 **Prompt your brand. Pick a domain. Launch.**
 
-One prompt turns into a multi-page brand site using the **[Meta Model API](https://dev.meta.ai/docs)** ([Muse Spark](https://dev.meta.ai/docs/models) `muse-spark-1.3`) — HTML pages, brand kit, and domain search keywords. From one screen you also pick **name.com**-verified domains, run **SerpApi** conflict checks, and **Launch brand** to Vercel hosting with DNS.
+One prompt turns into a multi-page brand site using the **[Meta Model API](https://dev.meta.ai/docs)** (default chat model **`muse-wonder-1.0`**, overridable via `META_MODEL`) — HTML pages, brand kit, and domain search keywords. From one screen you also pick **name.com**-verified domains, run **SerpApi** conflict checks, and **Launch brand** to Vercel hosting with DNS.
 
 **Live demo:** [prompt2brand.vercel.app](https://prompt2brand.vercel.app)  
 **Repo:** [github.com/srbu-srbu/prompt2brand](https://github.com/srbu-srbu/prompt2brand)
@@ -19,15 +19,18 @@ UI and launch pipeline existed before the event (tag [`v0.1.0-pre-meta`](https:/
 
 ```bash
 npm install
-npm run dev          # Vite frontend only (API routes need vercel dev)
-vercel link && vercel dev   # full stack locally
+vercel link
+vercel dev           # full stack — loads .env.local, serves /api + frontend
 ```
+
+Do **not** use `npm run dev` alone for generate/domain AI: Vite proxies `/api` to `http://localhost:3000`, which only exists when **`vercel dev`** is running.
 
 Copy `.env.example` to `.env.local`. Required for AI features:
 
 | Variable | Purpose |
 |----------|---------|
-| `MODEL_API_KEY` | [Meta Model API](https://dev.meta.ai/) key (`muse-spark-1.3`) |
+| `MODEL_API_KEY` | [Meta Model API](https://dev.meta.ai/) key |
+| `META_MODEL` | Optional chat model id (default `muse-wonder-1.0`; must be listed by `GET /v1/models`) |
 
 Other vars (Postgres, name.com, SerpApi, Vercel deploy) enable the full launch flow — see `.env.example` and **[SPEC.md](./SPEC.md)**.
 
@@ -48,6 +51,7 @@ Expect `"ok": true` and `"provider": "meta-model-api"` when `MODEL_API_KEY` is s
 | Variable | Purpose |
 |----------|---------|
 | `MODEL_API_KEY` | Meta Model API — site + domain brainstorm |
+| `META_MODEL` | Chat model id (default `muse-wonder-1.0`) |
 | `POSTGRES_URL` | Neon Postgres (site HTML storage) |
 | `P2B_LIVE_INTEGRATIONS` | `0`–`3` — sandbox/production integrations (see SPEC) |
 | `NAMECOM_SANDBOX_*` / `NAMECOM_PRODUCTION_*` | name.com API |
