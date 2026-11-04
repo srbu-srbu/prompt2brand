@@ -2,7 +2,6 @@ import { z } from "zod";
 import type { BrandKit, PageDraft } from "./types";
 import {
   chatCompletion,
-  getMetaChatModel,
   getMetaReasoningEffort,
   hasModelApiConfig,
   parseModelJson,
@@ -229,14 +228,11 @@ function ensureHomePage(pages: PageDraft[], brandKit: BrandKit): PageDraft[] {
 }
 
 function siteGenerationChatOptions() {
-  const model = getMetaChatModel();
-  const isSpark = model.includes("spark");
-  // Spark rejects some long streaming site-gen shapes on Chat Completions; Wonder uses streaming to avoid 504s.
   return {
     reasoningEffort: getMetaReasoningEffort(),
     maxCompletionTokens: 16384,
-    // Spark: non-streaming avoids spurious model_not_found on long streamed site-gen requests.
-    stream: !isSpark,
+    // Non-streaming: Meta returns misleading model_not_found on long streamed site-gen payloads (Spark + Wonder).
+    stream: false,
   };
 }
 

@@ -67,7 +67,7 @@ export default async function handler(_req: VercelRequest, res: VercelResponse) 
             { role: "user", content: '{"ping":true}' },
           ],
           reasoning_effort: getMetaReasoningEffort(),
-          max_completion_tokens: 8192,
+          max_completion_tokens: 256,
           stream: false,
         }),
       });
