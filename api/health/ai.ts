@@ -18,6 +18,9 @@ export default async function handler(_req: VercelRequest, res: VercelResponse) 
   let metaStatus = 0;
   let metaError = "";
   let availableModels: string[] | undefined;
+  let siteGenProbeOk: boolean | undefined;
+  let siteGenProbeStatus: number | undefined;
+  let siteGenProbeError = "";
 
   if (token) {
     try {
@@ -48,6 +51,29 @@ export default async function handler(_req: VercelRequest, res: VercelResponse) 
       if (!response.ok) {
         metaError = (await response.text()).slice(0, 240);
       }
+
+      const siteGenProbe = await fetch("https://api.meta.ai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            { role: "system", content: "Reply with JSON only." },
+            { role: "user", content: '{"ping":true}' },
+          ],
+          reasoning_effort: "medium",
+          max_completion_tokens: 8192,
+          stream: false,
+        }),
+      });
+      siteGenProbeStatus = siteGenProbe.status;
+      siteGenProbeOk = siteGenProbe.ok;
+      if (!siteGenProbe.ok) {
+        siteGenProbeError = (await siteGenProbe.text()).slice(0, 240);
+      }
     } catch (error) {
       metaError = error instanceof Error ? error.message : "Meta Model API probe failed";
     }
@@ -67,5 +93,12 @@ export default async function handler(_req: VercelRequest, res: VercelResponse) 
     },
     metaStatus,
     metaError: metaError || undefined,
+    siteGenProbe: token
+      ? {
+          ok: siteGenProbeOk,
+          status: siteGenProbeStatus,
+          error: siteGenProbeError || undefined,
+        }
+      : undefined,
   });
 }

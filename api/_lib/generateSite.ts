@@ -1,6 +1,11 @@
 import { z } from "zod";
 import type { BrandKit, PageDraft } from "./types";
-import { chatCompletion, hasModelApiConfig, parseModelJson } from "./metaModelApi";
+import {
+  chatCompletion,
+  getMetaChatModel,
+  hasModelApiConfig,
+  parseModelJson,
+} from "./metaModelApi";
 
 const PROMPT_HISTORY_MAX = 5;
 const PAGE_BODY_MAX = 24000;
@@ -222,21 +227,28 @@ function ensureHomePage(pages: PageDraft[], brandKit: BrandKit): PageDraft[] {
   ];
 }
 
+function siteGenerationChatOptions() {
+  const model = getMetaChatModel();
+  const isSpark = model.includes("spark");
+  // Spark rejects some long streaming site-gen shapes on Chat Completions; Wonder uses streaming to avoid 504s.
+  return {
+    reasoningEffort: "medium" as const,
+    maxCompletionTokens: isSpark ? 8192 : 16384,
+    stream: !isSpark,
+  };
+}
+
 async function callMetaModel(input: GenerateSiteInput) {
   const schemaHint = JSON.stringify(generateSiteJsonSchema, null, 2);
   const content = await chatCompletion(
     [
       {
-        role: "developer",
+        role: "system",
         content: `${buildSystemPrompt()}\n\nRespond with JSON only (no markdown fences) matching this schema:\n${schemaHint}`,
       },
       { role: "user", content: buildUserPrompt(input) },
     ],
-    {
-      reasoningEffort: "medium",
-      maxCompletionTokens: 16384,
-      stream: true,
-    },
+    siteGenerationChatOptions(),
   );
 
   return generateSiteSchema.parse(parseModelJson(content));
