@@ -4,7 +4,7 @@
 
 **Prompt your brand. Pick a domain. Launch.**
 
-One prompt turns into a multi-page brand site using the **[Meta Model API](https://dev.meta.ai/docs)** (default chat model **`muse-wonder-1.0`**, overridable via `META_MODEL`) — HTML pages, brand kit, and domain search keywords. From one screen you also pick **name.com**-verified domains, run **SerpApi** conflict checks, and **Launch brand** to Vercel hosting with DNS.
+One prompt turns into a multi-page brand site using the **[Meta Model API](https://dev.meta.ai/docs)** (default chat model **`muse-spark-1.3`**, overridable via `META_MODEL`) — HTML pages, brand kit, and domain search keywords. From one screen you also pick **name.com**-verified domains, run **SerpApi** conflict checks, and **Launch brand** to Vercel hosting with DNS.
 
 **Live demo:** [prompt2brand.vercel.app](https://prompt2brand.vercel.app)  
 **Repo:** [github.com/srbu-srbu/prompt2brand](https://github.com/srbu-srbu/prompt2brand)
@@ -30,7 +30,7 @@ Copy `.env.example` to `.env.local`. Required for AI features:
 | Variable | Purpose |
 |----------|---------|
 | `MODEL_API_KEY` | [Meta Model API](https://dev.meta.ai/) key |
-| `META_MODEL` | Optional chat model id (default `muse-wonder-1.0`; must be listed by `GET /v1/models`) |
+| `META_MODEL` | Optional chat model id (default `muse-spark-1.3`; must be listed by `GET /v1/models`) |
 
 Other vars (Postgres, name.com, SerpApi, Vercel deploy) enable the full launch flow — see `.env.example` and **[SPEC.md](./SPEC.md)**.
 
@@ -51,7 +51,7 @@ Expect `"ok": true` and `"provider": "meta-model-api"` when `MODEL_API_KEY` is s
 | Variable | Purpose |
 |----------|---------|
 | `MODEL_API_KEY` | Meta Model API — site + domain brainstorm |
-| `META_MODEL` | Chat model id (default `muse-wonder-1.0`) |
+| `META_MODEL` | Chat model id (default `muse-spark-1.3`) |
 | `POSTGRES_URL` | Neon Postgres (site HTML storage) |
 | `P2B_LIVE_INTEGRATIONS` | `0`–`3` — sandbox/production integrations (see SPEC) |
 | `NAMECOM_SANDBOX_*` / `NAMECOM_PRODUCTION_*` | name.com API |

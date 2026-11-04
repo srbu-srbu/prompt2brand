@@ -1,5 +1,5 @@
-/** Default chat model for keys that expose Wonder but not Spark (see GET /v1/models). */
-export const META_DEFAULT_CHAT_MODEL = "muse-wonder-1.0";
+/** Default chat model (override with META_MODEL if GET /v1/models differs for your key). */
+export const META_DEFAULT_CHAT_MODEL = "muse-spark-1.3";
 
 const META_API_BASE = "https://api.meta.ai/v1";
 const META_CHAT_URL = `${META_API_BASE}/chat/completions`;

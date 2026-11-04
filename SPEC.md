@@ -12,7 +12,7 @@
 
 **Pre-event baseline:** tag `v0.1.0-pre-meta` — React/Vite UI, name.com, SerpApi, Vercel launch pipeline (prior PoC).
 
-**Built during the event (Oct 26 – Nov 4, 2026):** Meta Model API integration for site generation and domain brainstorm via `api/_lib/metaModelApi.ts` (default model `muse-wonder-1.0`, env `META_MODEL`). Commits after `v0.1.0-pre-meta` document that scope.
+**Built during the event (Oct 26 – Nov 4, 2026):** Meta Model API integration for site generation and domain brainstorm via `api/_lib/metaModelApi.ts` (default model `muse-spark-1.3`, env `META_MODEL`). Commits after `v0.1.0-pre-meta` document that scope.
 
 **Hard rule:** Hackathon and sponsor references stay in README/SPEC and demo narration — not in generated customer site HTML.
 
@@ -131,7 +131,7 @@ User prompt (+ brand name, tagline, page titles)
         ↓
 POST /api/domains/suggest  OR  /api/domains/suggest/more
         ↓
-domainBrainstorm.ts  →  Meta Model API (META_MODEL / muse-wonder-1.0)
+domainBrainstorm.ts  →  Meta Model API (META_MODEL / muse-spark-1.3)
    returns: { stems: ["miliojen"], preferredTlds: ["dev", "xyz"], summary }
    fallback: domainPromptParse.ts (extract brand stem + TLDs from prompt — never whole sentence)
         ↓
@@ -247,7 +247,7 @@ Prompt (site tab) → preview builds (sessionStorage draft)
 | HTML storage | Neon Postgres via Vercel Marketplace |
 | Live hosting | Vercel Deploy API (primary) + DB serve (fallback) |
 | Draft | React state + `sessionStorage` |
-| Site generation LLM | Meta Model API → `META_MODEL` (default `muse-wonder-1.0`) |
+| Site generation LLM | Meta Model API → `META_MODEL` (default `muse-spark-1.3`) |
 | Domain brainstorm LLM | Same Meta model |
 | Domains | name.com Core API (sandbox or production) |
 | Brand conflicts | SerpApi Google search (live or mock) |
