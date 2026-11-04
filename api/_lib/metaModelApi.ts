@@ -5,7 +5,8 @@ const META_API_BASE = "https://api.meta.ai/v1";
 const META_CHAT_URL = `${META_API_BASE}/chat/completions`;
 
 export function getMetaChatModel(): string {
-  return process.env.META_MODEL?.trim() || META_DEFAULT_CHAT_MODEL;
+  const raw = process.env.META_MODEL?.trim() || META_DEFAULT_CHAT_MODEL;
+  return raw.replace(/^\uFEFF/, "").replace(/^["']|["']$/g, "");
 }
 
 export type ChatMessage = {

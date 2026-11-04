@@ -233,7 +233,8 @@ function siteGenerationChatOptions() {
   // Spark rejects some long streaming site-gen shapes on Chat Completions; Wonder uses streaming to avoid 504s.
   return {
     reasoningEffort: "medium" as const,
-    maxCompletionTokens: isSpark ? 8192 : 16384,
+    maxCompletionTokens: 16384,
+    // Spark: non-streaming avoids spurious model_not_found on long streamed site-gen requests.
     stream: !isSpark,
   };
 }
