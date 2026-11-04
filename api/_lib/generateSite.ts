@@ -241,7 +241,7 @@ async function callMetaModel(input: GenerateSiteInput) {
   const content = await chatCompletion(
     [
       {
-        role: "system",
+        role: "developer",
         content: `${buildSystemPrompt()}\n\nRespond with JSON only (no markdown fences) matching this schema:\n${schemaHint}`,
       },
       { role: "user", content: buildUserPrompt(input) },

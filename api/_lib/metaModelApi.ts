@@ -116,15 +116,11 @@ async function readStreamingChatContent(response: Response): Promise<string> {
   return content;
 }
 
-export async function chatCompletion(
-  messages: ChatMessage[],
-  options?: ChatCompletionOptions,
-): Promise<string> {
-  const apiKey = getModelApiKey();
-  if (!apiKey) {
-    throw new Error("MODEL_API_KEY is not configured");
-  }
+function isModelNotFoundMessage(message: string): boolean {
+  return /model was not found|model_not_found/i.test(message);
+}
 
+function buildChatBody(messages: ChatMessage[], options?: ChatCompletionOptions): Record<string, unknown> {
   const body: Record<string, unknown> = {
     model: getMetaChatModel(),
     messages,
@@ -139,6 +135,21 @@ export async function chatCompletion(
     body.max_completion_tokens = options.maxCompletionTokens;
   }
 
+  return body;
+}
+
+async function chatCompletionOnce(
+  messages: ChatMessage[],
+  options?: ChatCompletionOptions,
+): Promise<string> {
+  const apiKey = getModelApiKey();
+  if (!apiKey) {
+    throw new Error("MODEL_API_KEY is not configured");
+  }
+
+  const body = buildChatBody(messages, options);
+  const bodyJson = JSON.stringify(body);
+
   const response = await fetch(META_CHAT_URL, {
     method: "POST",
     headers: {
@@ -146,7 +157,7 @@ export async function chatCompletion(
       "Content-Type": "application/json",
       ...(options?.stream ? { Accept: "text/event-stream" } : {}),
     },
-    body: JSON.stringify(body),
+    body: bodyJson,
   });
 
   if (!response.ok) {
@@ -158,7 +169,9 @@ export async function chatCompletion(
       const text = await response.text().catch(() => "");
       if (text) message = text.slice(0, 240);
     }
-    throw new Error(message);
+    throw new Error(
+      `${message} [model=${String(body.model)}, stream=${Boolean(options?.stream)}, bytes=${bodyJson.length}]`,
+    );
   }
 
   if (options?.stream) {
@@ -172,4 +185,45 @@ export async function chatCompletion(
   }
 
   return content;
+}
+
+function siteGenRetryOptions(base?: ChatCompletionOptions): ChatCompletionOptions[] {
+  const max = base?.maxCompletionTokens ?? 16384;
+  const reasoning = base?.reasoningEffort;
+  const attempts: ChatCompletionOptions[] = [
+    { ...base, stream: false, reasoningEffort: reasoning, maxCompletionTokens: max },
+    { stream: false, reasoningEffort: reasoning, maxCompletionTokens: max },
+    { stream: false, maxCompletionTokens: max },
+    { stream: false, maxCompletionTokens: Math.min(max, 8192) },
+  ];
+
+  const seen = new Set<string>();
+  return attempts.filter((attempt) => {
+    const key = JSON.stringify(attempt);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+export async function chatCompletion(
+  messages: ChatMessage[],
+  options?: ChatCompletionOptions,
+): Promise<string> {
+  const attempts = siteGenRetryOptions(options);
+  let lastError: Error | undefined;
+
+  for (const attempt of attempts) {
+    try {
+      return await chatCompletionOnce(messages, attempt);
+    } catch (error) {
+      const err = error instanceof Error ? error : new Error(String(error));
+      lastError = err;
+      if (!isModelNotFoundMessage(err.message)) {
+        throw err;
+      }
+    }
+  }
+
+  throw lastError ?? new Error("Meta Model API failed");
 }
