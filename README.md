@@ -1,10 +1,19 @@
 ﻿# prompt2brand
 
+**Meta Global AI Developer Hackathon** · Theme: **Build for Your World**
+
 **Prompt your brand. Pick a domain. Launch.**
 
-A hackathon PoC that turns a text prompt into a multi-page brand website, searches available domains via name.com, checks brand conflicts via SerpApi, and launches to Vercel hosting with domain registration.
+One prompt turns into a multi-page brand site using the **[Meta Model API](https://dev.meta.ai/docs)** ([Muse Spark](https://dev.meta.ai/docs/models) `muse-spark-1.3`) — HTML pages, brand kit, and domain search keywords. From one screen you also pick **name.com**-verified domains, run **SerpApi** conflict checks, and **Launch brand** to Vercel hosting with DNS.
 
-**Live demo:** [prompt2brand.vercel.app](https://prompt2brand.vercel.app)
+**Live demo:** [prompt2brand.vercel.app](https://prompt2brand.vercel.app)  
+**Repo:** [github.com/srbu-srbu/prompt2brand](https://github.com/srbu-srbu/prompt2brand)
+
+### Hackathon scope
+
+UI and launch pipeline existed before the event (tag [`v0.1.0-pre-meta`](https://github.com/srbu-srbu/prompt2brand/releases/tag/v0.1.0-pre-meta)). **Built during Oct 26 – Nov 4, 2026:** Meta Model API integration for multi-page site generation and domain keyword brainstorm (`api/_lib/metaModelApi.ts` and callers). See commit history after that tag.
+
+---
 
 ## Quick start
 
@@ -14,20 +23,38 @@ npm run dev          # Vite frontend only (API routes need vercel dev)
 vercel link && vercel dev   # full stack locally
 ```
 
-Copy `.env.example` to `.env.local` and fill in credentials. See **[SPEC.md](./SPEC.md)** for architecture, API details, integration flags, and the Devpost checklist.
+Copy `.env.example` to `.env.local`. Required for AI features:
+
+| Variable | Purpose |
+|----------|---------|
+| `MODEL_API_KEY` | [Meta Model API](https://dev.meta.ai/) key (`muse-spark-1.3`) |
+
+Other vars (Postgres, name.com, SerpApi, Vercel deploy) enable the full launch flow — see `.env.example` and **[SPEC.md](./SPEC.md)**.
+
+### Verify Meta Model API
+
+After `vercel dev` or deploy:
+
+```text
+GET /api/health/ai
+```
+
+Expect `"ok": true` and `"provider": "meta-model-api"` when `MODEL_API_KEY` is set.
+
+---
 
 ## Environment (summary)
 
 | Variable | Purpose |
 |----------|---------|
-| `AI_GATEWAY_API_KEY` | Vercel AI Gateway (Gemini) for site + domain brainstorm |
+| `MODEL_API_KEY` | Meta Model API — site + domain brainstorm |
 | `POSTGRES_URL` | Neon Postgres (site HTML storage) |
-| `P2B_LIVE_INTEGRATIONS` | `0` = sandbox + Postgres link + mock SerpApi; `1` = sandbox + Vercel + mock SerpApi; `2` = sandbox + Vercel + live SerpApi; `3` = production name.com + Vercel + live SerpApi |
-| `NAMECOM_SANDBOX_*` / `NAMECOM_PRODUCTION_*` | name.com API credentials |
-| `SERPAPI_KEY` | SerpApi (when `P2B_LIVE_INTEGRATIONS=2` or `3`) |
+| `P2B_LIVE_INTEGRATIONS` | `0`–`3` — sandbox/production integrations (see SPEC) |
+| `NAMECOM_SANDBOX_*` / `NAMECOM_PRODUCTION_*` | name.com API |
+| `SERPAPI_KEY` | SerpApi conflicts (modes `2` or `3`) |
 | `VERCEL_TOKEN` | Vercel Deploy API (one static project per launch) |
 
-Full list and behavior: `.env.example` and [SPEC.md § Integrations](./SPEC.md).
+---
 
 ## Scripts
 
@@ -37,25 +64,27 @@ npm run build    # production build
 npm run preview  # preview production build
 ```
 
+---
+
 ## Documentation
 
 | Doc | Contents |
 |-----|----------|
-| **[SPEC.md](./SPEC.md)** | Product vision, UI flows, architecture, APIs, data model, sponsor integration details, Devpost checklist |
+| **[SPEC.md](./SPEC.md)** | Product vision, architecture, APIs, integrations, data model |
 | **`.env.example`** | All env vars with comments |
 
-**README vs SPEC:** This file is the GitHub front door — what the project is and how to run it. SPEC is the full reference for how everything works.
+---
 
-## Repo layout (high level)
+## Repo layout
 
 ```
-api/           Vercel serverless routes + _lib helpers
+api/           Vercel serverless routes + _lib (incl. metaModelApi.ts)
 src/           React SPA (preview, domain card, prompt panel)
 shared/        Types and logic shared between app and API
 ```
 
+---
+
 ## License
 
 Copyright © 2026 Miliojen LLC. All rights reserved.
-
-Hackathon submission for DevNetwork 2026. Source is public for judging; not licensed for commercial reuse unless otherwise agreed.

@@ -157,7 +157,7 @@ export default function App() {
               summary: [
                 "Domain search failed — try again in a moment.",
                 `Latest cue: ${prompt.slice(0, 60)}`,
-                "Check AI gateway and name.com credentials.",
+                "Check MODEL_API_KEY and name.com credentials.",
               ],
               status: "ready",
             }),

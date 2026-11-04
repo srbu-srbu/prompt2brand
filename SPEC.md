@@ -1,19 +1,20 @@
 # prompt2brand - Product Specification
 
-> **Version:** 2.0 (as-built)
-> **Last updated:** 2026-08-30
-> **Status:** Built — hackathon PoC ready for Devpost
-> **Team:** Solo — deadline Sep 3, 2026
+> **Version:** 2.1 (as-built)
+> **Last updated:** 2026-11-04
+> **Submission:** [Meta Global AI Developer Hackathon](https://dev.meta.ai/events/global-hackathon) — theme *Build for Your World*
 > **Live demo:** [prompt2brand.vercel.app](https://prompt2brand.vercel.app)
 > **Repo:** [github.com/srbu-srbu/prompt2brand](https://github.com/srbu-srbu/prompt2brand)
 
 ---
 
-## Internal context (not for product surfaces)
+## Hackathon context (not for product UI)
 
-Built for **[DevNetwork [API + Cloud + AI] Hackathon 2026](https://api-cloud-ai-hackathon-2026.devpost.com/)** on Devpost.
+**Pre-event baseline:** tag `v0.1.0-pre-meta` — React/Vite UI, name.com, SerpApi, Vercel launch pipeline (prior PoC).
 
-**Hard rule:** Hackathon references belong in this spec and Devpost only. Never in product UI or demo narration.
+**Built during the event (Oct 26 – Nov 4, 2026):** Meta Model API integration — `muse-spark-1.3` for site generation and domain brainstorm via `api/_lib/metaModelApi.ts`. Commits after `v0.1.0-pre-meta` document that scope.
+
+**Hard rule:** Hackathon and sponsor references stay in README/SPEC and demo narration — not in generated customer site HTML.
 
 ---
 
@@ -30,9 +31,9 @@ Bundle — not domain-only:
 
 Real product: subscribe once, then unlimited prompt edits. Billing not built in PoC.
 
-### Hackathon PoC vs demo narrative
+### PoC scope vs product vision
 
-| Built in PoC | Not built — explain in demo video / Devpost only |
+| Built in PoC | Not built — explain in demo narration only |
 |--------------|--------------------------------------------------|
 | First launch: prompt → preview → domain card → confirm site + domain → Launch brand | Return visit after subscribe |
 | Prompt during domain pick (site tab + domain tab) | Post-subscribe unlimited edit flow |
@@ -130,7 +131,7 @@ User prompt (+ brand name, tagline, page titles)
         ↓
 POST /api/domains/suggest  OR  /api/domains/suggest/more
         ↓
-domainBrainstorm.ts  →  Gemini (Vercel AI Gateway)
+domainBrainstorm.ts  →  Meta Model API (muse-spark-1.3)
    returns: { stems: ["miliojen"], preferredTlds: ["dev", "xyz"], summary }
    fallback: domainPromptParse.ts (extract brand stem + TLDs from prompt — never whole sentence)
         ↓
@@ -246,8 +247,8 @@ Prompt (site tab) → preview builds (sessionStorage draft)
 | HTML storage | Neon Postgres via Vercel Marketplace |
 | Live hosting | Vercel Deploy API (primary) + DB serve (fallback) |
 | Draft | React state + `sessionStorage` |
-| Site generation LLM | Vercel AI Gateway → `google/gemini-2.5-flash-lite` |
-| Domain brainstorm LLM | Same gateway/model |
+| Site generation LLM | Meta Model API → `muse-spark-1.3` |
+| Domain brainstorm LLM | Same Meta model |
 | Domains | name.com Core API (sandbox or production) |
 | Brand conflicts | SerpApi Google search (live or mock) |
 
@@ -349,7 +350,7 @@ Provision via [Vercel Marketplace → Neon](https://vercel.com/marketplace/neon)
 | GET | `/api/sites/[siteId]/[slug]` | DB HTML serve |
 | GET | `/api/health` | Liveness |
 | GET | `/api/health/db` | Postgres connectivity |
-| GET | `/api/health/ai` | AI Gateway connectivity |
+| GET | `/api/health/ai` | Meta Model API connectivity |
 
 **Removed / never built:** separate `POST /api/domains/register` (register is inside publish).
 
@@ -371,66 +372,7 @@ Provision via [Vercel Marketplace → Neon](https://vercel.com/marketplace/neon)
 - [x] Combined website+domain confirm before Launch brand; no price shown
 - [x] Dual-write DB + Vercel deploy; fallback serve works
 - [x] Launch status poll with step lines in domain card
-- [ ] Demo video 2–4 min (mention unlimited future edits in narration)
-
----
-
-## Devpost submission checklist (internal)
-
-Submit sandbox-first (`P2B_LIVE_INTEGRATIONS=0` or `1`). Use `2` for live SerpApi + Vercel; use `3` for production name.com registration.
-
-### Devpost page
-
-- [ ] Project name: **prompt2brand**
-- [ ] One-line pitch (editor + domain + hosting; prompt to build your brand)
-- [ ] Link to public GitHub repo
-- [ ] Link to live demo URL
-- [ ] Tag **name.com** and **SerpApi** sponsor challenges
-- [ ] 2–4 min demo video (YouTube/Vimeo embed)
-- [ ] Built during hackathon window (Aug 17 – Sep 3, 2026)
-
-### Demo video script
-
-1. Land on minimal prompt UI — voiceover product vision (unlimited future edits after subscribe)
-2. Site tab prompt → preview builds; show **3-line summary**
-3. **Choose your domain** tab → card opens; domain cue (e.g. *".dev and .xyz for miliojen"*) refreshes list
-4. Optional: site tab tweak; highlight **Powered by name.com** | **Powered by SerpApi**
-5. Select domain → conflicts load; show URL + highlight when conflict (e.g. Facebook slug match)
-6. Confirm + **Launch brand** → spinner → status panel with step lines
-7. Links turn live (or explain sandbox DNS timing in voiceover)
-
-### name.com evidence
-
-Redact keys/tokens before upload.
-
-- [ ] Screenshot/JSON: domain **search** with available results
-- [ ] Screenshot/JSON: sandbox **registration** success
-- [ ] Screenshot/JSON: **DNS** CNAME record
-- [ ] Caption: *"Registered and DNS configured via name.com API (sandbox)."*
-
-### SerpApi evidence
-
-- [ ] Screenshot: conflict column with platform labels (set `P2B_LIVE_INTEGRATIONS=2` or `3`)
-- [ ] Caption: *"Live web data via SerpApi for brand conflict checks."*
-
-### Repo
-
-- [x] README: quick start + pointer to SPEC
-- [x] `.env.example` with all keys documented
-- [ ] `docs/demo-evidence/` for redacted API logs (optional)
-
-### Optional stretch
-
-- [ ] name.com production credits; one real domain registration
-- [ ] New launches expose public `p2b-*.vercel.app` URLs (SSO cleared automatically; verify in incognito)
-- [ ] Re-record video if real domain goes live
-
-### Pre-submit smoke test
-
-- [ ] Prompt → preview → domain tab → select domain → conflicts → launch → status live
-- [ ] Fallback URL works if Vercel deploy pending
-- [ ] name.com sandbox register + DNS in server logs
-- [ ] SerpApi returns results (flag = 3)
+- [x] Meta Model API wired for site + domain brainstorm (`MODEL_API_KEY`)
 
 ---
 
@@ -440,14 +382,14 @@ Redact keys/tokens before upload.
 - `safePublish` client fallback on API failure returns mock pending site (edge case)
 - SerpApi 1-hour cache may show stale conflicts during rapid retesting
 - Vercel Deployment Protection on new `p2b-*` projects is cleared via `ssoProtection: null` after Deploy API launch
-- LLM gateway rate limits → generate may fall back to preserving current draft
+- Meta Model API rate limits → generate may fall back to preserving current draft
 
 ---
 
 ## Resolved decisions (was open questions)
 
 1. **Preview trigger:** submit on Enter/send (not debounced pause)
-2. **LLM provider:** Vercel AI Gateway + `google/gemini-2.5-flash-lite`
+2. **LLM provider:** Meta Model API + `muse-spark-1.3` (`MODEL_API_KEY`)
 3. **Domain conflicts:** async on select, not bundled in suggest response
 4. **Launch UI:** in-card status panel, not separate done page
 

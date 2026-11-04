@@ -1,8 +1,7 @@
 import { z } from "zod";
 import type { BrandKit, PageDraft } from "./types";
+import { chatCompletion, hasModelApiConfig, parseModelJson } from "./metaModelApi";
 
-const MODEL_ID = "google/gemini-2.5-flash-lite";
-const GATEWAY_URL = "https://ai-gateway.vercel.sh/v1/chat/completions";
 const PROMPT_HISTORY_MAX = 5;
 const PAGE_BODY_MAX = 24000;
 const PAGE_CONTEXT_MAX = 8000;
@@ -110,14 +109,6 @@ export type GenerateSiteResult = {
   error?: string;
 };
 
-function gatewayAuthToken(): string | undefined {
-  return process.env.AI_GATEWAY_API_KEY ?? process.env.VERCEL_OIDC_TOKEN;
-}
-
-function hasGatewayAuth(): boolean {
-  return Boolean(gatewayAuthToken());
-}
-
 function recentPromptsForLlm(input: GenerateSiteInput): string[] {
   return [...(input.draft?.promptHistory ?? []), input.prompt].slice(-PROMPT_HISTORY_MAX);
 }
@@ -188,7 +179,7 @@ export function mockFallback(input: GenerateSiteInput, error?: string): Generate
       summary: [
         "AI unavailable — kept your current preview.",
         `Latest cue: ${input.prompt.slice(0, 60)}`,
-        "Try again in a moment if the AI gateway was rate-limited.",
+        "Try again in a moment if the Meta Model API was rate-limited.",
       ],
       source: "mock",
       error,
@@ -207,7 +198,7 @@ export function mockFallback(input: GenerateSiteInput, error?: string): Generate
     summary: [
       "AI unavailable — no preview generated.",
       `Latest cue: ${input.prompt.slice(0, 60)}`,
-      "Try again in a moment if the AI gateway was rate-limited.",
+      "Try again in a moment if the Meta Model API was rate-limited.",
     ],
     source: "mock",
     error,
@@ -231,72 +222,30 @@ function ensureHomePage(pages: PageDraft[], brandKit: BrandKit): PageDraft[] {
   ];
 }
 
-type GatewayChatResponse = {
-  choices?: Array<{
-    message?: {
-      content?: string | null;
-    };
-  }>;
-  error?: {
-    message?: string;
-  };
-};
-
-function parseModelJson(content: string): unknown {
-  const trimmed = content.trim();
-  const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)```$/i);
-  const jsonText = fenced?.[1]?.trim() ?? trimmed;
-  return JSON.parse(jsonText);
-}
-
-async function callGateway(input: GenerateSiteInput) {
-  const token = gatewayAuthToken();
-  if (!token) {
-    throw new Error("No AI gateway auth configured");
-  }
-
+async function callMetaModel(input: GenerateSiteInput) {
   const schemaHint = JSON.stringify(generateSiteJsonSchema, null, 2);
-  const response = await fetch(GATEWAY_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: MODEL_ID,
-      temperature: 0.55,
-      stream: false,
-      messages: [
-        {
-          role: "system",
-          content: `${buildSystemPrompt()}\n\nRespond with JSON only (no markdown fences) matching this schema:\n${schemaHint}`,
-        },
-        { role: "user", content: buildUserPrompt(input) },
-      ],
-    }),
-  });
-
-  const data = (await response.json()) as GatewayChatResponse;
-  if (!response.ok) {
-    throw new Error(data.error?.message ?? `Gateway request failed (${response.status})`);
-  }
-
-  const content = data.choices?.[0]?.message?.content;
-  if (!content) {
-    throw new Error("Gateway returned empty content");
-  }
+  const content = await chatCompletion(
+    [
+      {
+        role: "system",
+        content: `${buildSystemPrompt()}\n\nRespond with JSON only (no markdown fences) matching this schema:\n${schemaHint}`,
+      },
+      { role: "user", content: buildUserPrompt(input) },
+    ],
+    { reasoningEffort: "medium" },
+  );
 
   return generateSiteSchema.parse(parseModelJson(content));
 }
 
 export async function generateSite(input: GenerateSiteInput): Promise<GenerateSiteResult> {
-  if (!hasGatewayAuth()) {
-    console.warn("generateSite: no AI gateway auth, using mock");
+  if (!hasModelApiConfig()) {
+    console.warn("generateSite: MODEL_API_KEY not configured, using mock");
     return mockFallback(input);
   }
 
   try {
-    const object = await callGateway(input);
+    const object = await callMetaModel(input);
 
     return {
       brandKit: object.brandKit,

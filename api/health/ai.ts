@@ -1,37 +1,48 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { META_SPARK_MODEL, getModelApiKey, hasModelApiConfig } from "../_lib/metaModelApi";
 
 export default async function handler(_req: VercelRequest, res: VercelResponse) {
-  const hasApiKey = Boolean(process.env.AI_GATEWAY_API_KEY);
-  const hasOidc = Boolean(process.env.VERCEL_OIDC_TOKEN);
-  const token = process.env.AI_GATEWAY_API_KEY ?? process.env.VERCEL_OIDC_TOKEN;
+  const hasApiKey = hasModelApiConfig();
+  const token = getModelApiKey();
 
-  let gatewayOk = false;
-  let gatewayStatus = 0;
-  let gatewayError = "";
+  let metaOk = false;
+  let metaStatus = 0;
+  let metaError = "";
 
   if (token) {
     try {
-      const response = await fetch("https://ai-gateway.vercel.sh/v1/models", {
-        headers: { Authorization: `Bearer ${token}` },
+      const response = await fetch("https://api.meta.ai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: META_SPARK_MODEL,
+          messages: [{ role: "user", content: "Reply with OK only." }],
+          max_completion_tokens: 16,
+          reasoning_effort: "low",
+        }),
       });
-      gatewayStatus = response.status;
-      gatewayOk = response.ok;
+      metaStatus = response.status;
+      metaOk = response.ok;
       if (!response.ok) {
-        gatewayError = (await response.text()).slice(0, 240);
+        metaError = (await response.text()).slice(0, 240);
       }
     } catch (error) {
-      gatewayError = error instanceof Error ? error.message : "Gateway probe failed";
+      metaError = error instanceof Error ? error.message : "Meta Model API probe failed";
     }
   }
 
   res.status(200).json({
-    ok: gatewayOk,
+    ok: metaOk,
+    provider: "meta-model-api",
+    model: META_SPARK_MODEL,
     auth: {
       hasApiKey,
-      hasOidc,
       configured: Boolean(token),
     },
-    gatewayStatus,
-    gatewayError: gatewayError || undefined,
+    metaStatus,
+    metaError: metaError || undefined,
   });
 }

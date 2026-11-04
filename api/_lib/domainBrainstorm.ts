@@ -4,9 +4,7 @@ import {
   mergePreferredTlds,
   normalizeStems,
 } from "./domainPromptParse";
-
-const MODEL_ID = "google/gemini-2.5-flash-lite";
-const GATEWAY_URL = "https://ai-gateway.vercel.sh/v1/chat/completions";
+import { chatCompletion, hasModelApiConfig, parseModelJson } from "./metaModelApi";
 
 export const DEFAULT_PREFERRED_TLDS = ["com", "org", "net"] as const;
 export const MORE_PREFERRED_TLDS = ["xyz", "app", "dev"] as const;
@@ -38,14 +36,6 @@ export type DomainBrainstormResult = {
   summary: [string, string, string];
   source: "llm" | "mock";
 };
-
-function gatewayAuthToken(): string | undefined {
-  return process.env.AI_GATEWAY_API_KEY ?? process.env.VERCEL_OIDC_TOKEN;
-}
-
-function hasGatewayAuth(): boolean {
-  return Boolean(gatewayAuthToken());
-}
 
 export function sanitizeStem(raw: string): string {
   return raw
@@ -81,18 +71,6 @@ function moreFallbackStems(input: DomainBrainstormInput): string[] {
     .filter((stem) => stem.length >= 3 && !excludedStems.has(stem));
 
   return [...new Set(alternates])].slice(0, 4);
-}
-
-type GatewayChatResponse = {
-  choices?: Array<{ message?: { content?: string | null } }>;
-  error?: { message?: string };
-};
-
-function parseModelJson(content: string): unknown {
-  const trimmed = content.trim();
-  const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)```$/i);
-  const jsonText = fenced?.[1]?.trim() ?? trimmed;
-  return JSON.parse(jsonText);
 }
 
 function buildFallbackResult(input: DomainBrainstormInput): DomainBrainstormResult {
@@ -141,12 +119,7 @@ export async function brainstormDomainKeywords(
   const mode = input.mode ?? "initial";
   const fallback = buildFallbackResult({ ...input, mode });
 
-  if (!hasGatewayAuth()) {
-    return fallback;
-  }
-
-  const token = gatewayAuthToken();
-  if (!token) {
+  if (!hasModelApiConfig()) {
     return fallback;
   }
 
@@ -192,38 +165,16 @@ export async function brainstormDomainKeywords(
   };
 
   try {
-    const response = await fetch(GATEWAY_URL, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: MODEL_ID,
-        temperature: mode === "more" ? 0.85 : 0.7,
-        stream: false,
-        messages: [
-          {
-            role: "system",
-            content: systemPrompt(mode),
-          },
-          {
-            role: "user",
-            content: `${JSON.stringify(userPayload, null, 2)}\n\nRespond with JSON matching:\n${schemaHint}`,
-          },
-        ],
-      }),
-    });
-
-    const data = (await response.json()) as GatewayChatResponse;
-    if (!response.ok) {
-      throw new Error(data.error?.message ?? `Gateway request failed (${response.status})`);
-    }
-
-    const content = data.choices?.[0]?.message?.content;
-    if (!content) {
-      throw new Error("Gateway returned empty content");
-    }
+    const content = await chatCompletion(
+      [
+        { role: "system", content: systemPrompt(mode) },
+        {
+          role: "user",
+          content: `${JSON.stringify(userPayload, null, 2)}\n\nRespond with JSON matching:\n${schemaHint}`,
+        },
+      ],
+      { reasoningEffort: "medium" },
+    );
 
     const parsed = domainBrainstormSchema.parse(parseModelJson(content));
     const stems = normalizeStems(parsed.stems);

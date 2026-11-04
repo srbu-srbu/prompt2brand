@@ -117,7 +117,7 @@ export async function mockGenerate(
       summary: [
         "AI unavailable — kept your current preview.",
         `Latest cue: ${prompt.slice(0, 60)}`,
-        "Try again in a moment if the AI gateway was rate-limited.",
+        "Try again in a moment if the Meta Model API was rate-limited.",
       ] satisfies SummaryLines,
       source: "mock" as const,
     };
@@ -135,7 +135,7 @@ export async function mockGenerate(
     summary: [
       "AI unavailable — no preview generated.",
       `Latest cue: ${prompt.slice(0, 60)}`,
-      "Try again in a moment if the AI gateway was rate-limited.",
+      "Try again in a moment if the Meta Model API was rate-limited.",
     ] satisfies SummaryLines,
     source: "mock" as const,
   };
@@ -172,7 +172,7 @@ export async function safeGenerate(
   try {
     const result = await apiGenerate(prompt, draft);
     if ("source" in result && result.source === "mock") {
-      console.warn("Generate used server mock fallback — check AI gateway / logs");
+      console.warn("Generate used server mock fallback — check MODEL_API_KEY / logs");
     }
     return result;
   } catch {
@@ -187,7 +187,7 @@ export async function safeDomainSuggest(
 ) {
   const result = await apiDomainSuggest(prompt, options);
   if (result.brainstormSource === "mock") {
-    console.warn("Domain brainstorm used script fallback — check AI gateway / logs");
+    console.warn("Domain brainstorm used script fallback — check MODEL_API_KEY / logs");
   }
   return result;
 }
