@@ -4,7 +4,12 @@ import {
   mergePreferredTlds,
   normalizeStems,
 } from "./domainPromptParse";
-import { chatCompletion, hasModelApiConfig, parseModelJson } from "./metaModelApi";
+import {
+  chatCompletion,
+  getMetaReasoningEffort,
+  hasModelApiConfig,
+  parseModelJson,
+} from "./metaModelApi";
 
 export const DEFAULT_PREFERRED_TLDS = ["com", "org", "net"] as const;
 export const MORE_PREFERRED_TLDS = ["xyz", "app", "dev"] as const;
@@ -173,7 +178,7 @@ export async function brainstormDomainKeywords(
           content: `${JSON.stringify(userPayload, null, 2)}\n\nRespond with JSON matching:\n${schemaHint}`,
         },
       ],
-      { reasoningEffort: "medium", maxCompletionTokens: 2048 },
+      { reasoningEffort: getMetaReasoningEffort(), maxCompletionTokens: 2048 },
     );
 
     const parsed = domainBrainstormSchema.parse(parseModelJson(content));

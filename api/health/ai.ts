@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import {
   getMetaChatModel,
+  getMetaReasoningEffort,
   getModelApiKey,
   hasModelApiConfig,
 } from "../_lib/metaModelApi";
@@ -13,6 +14,7 @@ export default async function handler(_req: VercelRequest, res: VercelResponse) 
   const hasApiKey = hasModelApiConfig();
   const token = getModelApiKey();
   const model = getMetaChatModel();
+  const reasoningEffort = getMetaReasoningEffort();
 
   let metaOk = false;
   let metaStatus = 0;
@@ -64,7 +66,7 @@ export default async function handler(_req: VercelRequest, res: VercelResponse) 
             { role: "system", content: "Reply with JSON only." },
             { role: "user", content: '{"ping":true}' },
           ],
-          reasoning_effort: "medium",
+          reasoning_effort: getMetaReasoningEffort(),
           max_completion_tokens: 8192,
           stream: false,
         }),
@@ -85,6 +87,7 @@ export default async function handler(_req: VercelRequest, res: VercelResponse) 
     ok: metaOk,
     provider: "meta-model-api",
     model,
+    reasoningEffort,
     modelAvailable,
     availableModels,
     auth: {

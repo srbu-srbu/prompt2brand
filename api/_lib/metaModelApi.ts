@@ -1,5 +1,19 @@
 /** Default chat model (override with META_MODEL if GET /v1/models differs for your key). */
-export const META_DEFAULT_CHAT_MODEL = "muse-spark-1.3";
+export const META_DEFAULT_CHAT_MODEL = "muse-wonder-1.0";
+
+/** Default reasoning depth for site + domain LLM calls (override with META_REASONING_EFFORT). */
+export const META_DEFAULT_REASONING_EFFORT = "low" as const;
+
+export type MetaReasoningEffort = "minimal" | "low" | "medium" | "high";
+
+export function getMetaReasoningEffort(): MetaReasoningEffort {
+  const raw = process.env.META_REASONING_EFFORT?.trim().toLowerCase();
+  const allowed: MetaReasoningEffort[] = ["minimal", "low", "medium", "high"];
+  if (raw && allowed.includes(raw as MetaReasoningEffort)) {
+    return raw as MetaReasoningEffort;
+  }
+  return META_DEFAULT_REASONING_EFFORT;
+}
 
 const META_API_BASE = "https://api.meta.ai/v1";
 const META_CHAT_URL = `${META_API_BASE}/chat/completions`;
