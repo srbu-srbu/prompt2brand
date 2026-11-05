@@ -210,11 +210,12 @@ async function chatCompletionOnce(
 function siteGenRetryOptions(base?: ChatCompletionOptions): ChatCompletionOptions[] {
   const max = base?.maxCompletionTokens ?? 16384;
   const reasoning = base?.reasoningEffort;
+  const model = base?.model;
   const attempts: ChatCompletionOptions[] = [
-    { ...base, stream: false, reasoningEffort: reasoning, maxCompletionTokens: max },
-    { stream: false, reasoningEffort: reasoning, maxCompletionTokens: max },
-    { stream: false, maxCompletionTokens: max },
-    { stream: false, maxCompletionTokens: Math.min(max, 8192) },
+    { ...base, model, stream: false, reasoningEffort: reasoning, maxCompletionTokens: max },
+    { model, stream: false, reasoningEffort: reasoning, maxCompletionTokens: max },
+    { model, stream: false, maxCompletionTokens: max },
+    { model, stream: false, maxCompletionTokens: Math.min(max, 8192) },
   ];
 
   const seen = new Set<string>();
