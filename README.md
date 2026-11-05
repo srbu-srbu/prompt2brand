@@ -11,7 +11,7 @@ One prompt turns into a multi-page brand site using the **[Meta Model API](https
 
 ### Hackathon scope
 
-UI and launch pipeline existed before the event (tag [`v0.1.0-pre-meta`](https://github.com/srbu-srbu/prompt2brand/releases/tag/v0.1.0-pre-meta)). **Built during Oct 26 – Nov 4, 2026:** Meta Model API integration for multi-page site generation and domain keyword brainstorm (`api/_lib/metaModelApi.ts` and callers). See commit history after that tag.
+UI and launch pipeline existed before the event (tag [`v0.1.0-pre-meta`](https://github.com/srbu-srbu/prompt2brand/releases/tag/v0.1.0-pre-meta)). **Built during Oct 26 – Nov 4, 2026:** Meta Model API integration for multi-page site generation and domain keyword brainstorm (`api/_lib/metaModelApi.ts` and callers), plus **Muse Image** logo generation on the **Select your logo** tab (`api/_lib/metaImageApi.ts`, `api/logo/generate.ts`). See commit history after that tag.
 
 ---
 
