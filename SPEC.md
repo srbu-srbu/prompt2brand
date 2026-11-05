@@ -12,7 +12,7 @@
 
 **Pre-event baseline:** tag `v0.1.0-pre-meta` — React/Vite UI, name.com, SerpApi, Vercel launch pipeline (prior PoC).
 
-**Built during the event (Oct 26 – Nov 4, 2026):** Meta Model API integration for site generation and domain brainstorm via `api/_lib/metaModelApi.ts` (default model `muse-wonder-1.0`, `META_REASONING_EFFORT=low`, env overrides). Commits after `v0.1.0-pre-meta` document that scope.
+**Built during the event (Oct 26 – Nov 4, 2026):** Meta Model API integration for site generation, domain brainstorm (`api/_lib/metaModelApi.ts`), and logo/favicon generation (`api/_lib/metaImageApi.ts` / Muse Image). Default chat model `muse-wonder-1.0`, `META_REASONING_EFFORT=low`, env overrides. Commits after `v0.1.0-pre-meta` document that scope.
 
 **Hard rule:** Hackathon and sponsor references stay in README/SPEC and demo narration — not in generated customer site HTML.
 
@@ -77,7 +77,7 @@ On **Launch brand** (website + domain confirmed):
 
 1. **Save** wrapped HTML to **Neon Postgres**
 2. **Kick off** Vercel Deploy API (non-blocking in handler; status polled client-side)
-3. **Register** domain via name.com + DNS (modes 0–3: `www` CNAME to hosted URL; mode `4`: Vercel custom domain + apex A + `www` CNAME from Vercel config)
+3. **Register** domain via name.com + DNS (modes 0–2: `www` CNAME to hosted URL; mode `3` with successful Vercel deploy: production custom domain + apex A + `www` CNAME from Vercel config)
 
 Until Launch brand, everything stays in **client draft** (React state + `sessionStorage`). No backend write while prompting or picking a domain.
 
@@ -180,6 +180,7 @@ User keeps the **prompt panel throughout** build and domain selection.
 | Tab | Mode | Effect |
 |-----|------|--------|
 | **Create / Edit website** | `site` | `/api/generate` — updates brand kit + pages |
+| **Select your logo** | `logo` | `/api/logo/generate` — Muse Image → logo + favicon PNGs |
 | **Choose your domain** | `domain` | Opens/toggles domain card; domain-tab submits go to `/api/domains/suggest` |
 
 Clicking **Choose your domain** again toggles the card (chevron ▲/▼). Prompt submit is **on Enter/send**, not debounced.
@@ -247,8 +248,9 @@ Prompt (site tab) → preview builds (sessionStorage draft)
 | HTML storage | Neon Postgres via Vercel Marketplace |
 | Live hosting | Vercel Deploy API (primary) + DB serve (fallback) |
 | Draft | React state + `sessionStorage` |
-| Site generation LLM | Meta Model API → `META_MODEL` (default `muse-wonder-1.0`), `META_REASONING_EFFORT` (default `low`) |
-| Domain brainstorm LLM | Same Meta model |
+| Site generation LLM | Meta Model API → `META_MODEL` (default `muse-wonder-1.0`), `META_REASONING_EFFORT` (default `low`), non-streaming, 16k max tokens |
+| Domain brainstorm LLM | Same Meta chat model + `chatCompletion` retries |
+| Logo / favicon | Meta **`POST /v1/images/generations`** → `muse-image-1.0` (same `MODEL_API_KEY`) |
 | Domains | name.com Core API (sandbox or production) |
 | Brand conflicts | SerpApi Google search (live or mock) |
 
@@ -342,6 +344,7 @@ Provision via [Vercel Marketplace → Neon](https://vercel.com/marketplace/neon)
 | Method | Path | Purpose |
 |--------|------|---------|
 | POST | `/api/generate` | Site prompt → brandKit + pages + 3-line summary |
+| POST | `/api/logo/generate` | Logo prompt → `brandAssets` (200×200 + 32×32 PNG) via Muse Image |
 | POST | `/api/domains/suggest` | Domain prompt → LLM brainstorm → name.com search |
 | POST | `/api/domains/suggest/more` | More domains (LLM `mode: more` + exclude list) |
 | GET | `/api/domains/conflicts` | SerpApi conflicts for selected FQDN |
@@ -365,6 +368,50 @@ Provision via [Vercel Marketplace → Neon](https://vercel.com/marketplace/neon)
 
 ---
 
+## Meta Model API — issues encountered & mitigations
+
+Integration was more sensitive to **request shape and parameters** than a typical OpenAI-compatible chat call. Several failures surfaced as HTTP **404** / **`model_not_found`** / *“The requested model was not found”* even when the model id was correct and the same key worked for smaller probes.
+
+### Misleading `model_not_found` (chat / site generation)
+
+| Symptom | What we learned | Mitigation in repo |
+|--------|------------------|-------------------|
+| Site gen fails with `model_not_found` while a tiny health ping succeeds | Large **streaming** site-gen payloads (full JSON schema + multi-page HTML) triggered false negatives on Chat Completions for both **Wonder** and **Spark** | **`stream: false`** for site generation (`generateSite.ts` → `siteGenerationChatOptions`) |
+| Same error after switching models | Not only “wrong model id” — **payload size**, **`reasoning_effort`**, and **`max_completion_tokens`** matter | **`chatCompletion`** retries alternate bodies on `model_not_found` only: drop optional fields, retry with lower `max_completion_tokens` (8192) (`metaModelApi.ts` → `siteGenRetryOptions`) |
+| Spark-specific oddities (early integration) | Spark rejected some long **streaming** site-gen shapes; non-streaming was required before Wonder was tuned the same way | History: Spark used lower token caps briefly; current as-built uses **16384** tokens and **non-streaming for all** chat models used for site gen |
+| Env says `muse-wonder-1.0` but API still 404 | Model must appear on **`GET /v1/models`** for **your** `MODEL_API_KEY`; keys differ in which Muse SKUs are enabled | Set **`META_MODEL`** to an id your key lists (e.g. `muse-spark-1.3` if Wonder is unavailable). Strip BOM/quotes from env (`getMetaChatModel()` sanitization) |
+| Health check passes, site gen fails | Minimal ping ≠ full site-gen body | **`GET /api/health/ai`** includes **`siteGenProbe`**: non-streaming request with **`reasoning_effort`** matching production and JSON-style messages |
+
+**Site-gen parameters (as-built):**
+
+- **`role: "developer"`** for the system/schema message (not `system`) — aligned with Meta’s recommended pattern for structured tasks.
+- **`META_REASONING_EFFORT`** default **`low`** (env: `minimal` | `low` | `medium` | `high`) — lowered from early **`medium`** trials for latency and stability.
+- **`max_completion_tokens: 16384`** — headroom for up to five HTML fragments in one JSON response.
+- **Structured output:** JSON schema embedded in the developer message; **`parseModelJson`** strips markdown fences; **Zod** validates before preview update.
+- **Failure UX:** `generateSite` catches errors and returns **`source: "mock"`** while preserving the current draft so the UI stays usable during outages or rate limits.
+
+**Domain brainstorm** uses the same **`chatCompletion`** helper with a smaller budget (**2048** tokens) and the same **`reasoning_effort`** — less payload than site gen but subject to the same `model_not_found` retry behavior.
+
+### Muse Image (logo tab)
+
+| Symptom | What we learned | Mitigation in repo |
+|--------|------------------|-------------------|
+| Logo tab: `model_not_found` for **`muse-image-1.0`** | Image SKU is **separate** from chat; chat can work while image does not | Requires **Muse Image** on the key; optional **`META_IMAGE_MODEL`** (default `muse-image-1.0`) |
+| Strict image request bodies | Extra fields (`size`, `output_format`, `response_format`) can differ by API revision | **`metaImageApi.ts`** calls **`POST /v1/images/generations`** with png + b64_json; failures surface as “Logo update failed — kept the previous logo.” |
+
+Logo generation does **not** share the chat retry loop; failures keep the previous **`brandAssets`** revision.
+
+### Operations & debugging
+
+- **Probe:** `GET /api/health/ai` — `metaStatus`, `siteGenProbe`, optional `availableModels` from `GET /v1/models`.
+- **Logs:** Serverless stderr includes Meta errors with **`[model=…, stream=…, bytes=…]`** on chat failures to compare failing payload size vs retries.
+- **Local vs production:** Use **`vercel dev`** so `/api/*` sees the same env as deploy; `npm run dev` alone proxies API to a missing backend.
+- **Do not trust `model_not_found` literally** — retry with smaller/simpler body and non-streaming before changing `META_MODEL`.
+
+Commit history from **`v0.1.0-pre-meta`** through **`bbf4756`** / logo tab documents this tuning sequence (non-streaming, developer role, retries, env sanitization, health probe shape).
+
+---
+
 ## Success criteria (implementation)
 
 - [x] Prompt visible during domain selection; site + domain tab intents work
@@ -376,13 +423,49 @@ Provision via [Vercel Marketplace → Neon](https://vercel.com/marketplace/neon)
 
 ---
 
+## Product inspiration
+
+Starting a brand usually means juggling separate tools: site builder, domain search, social/name conflict checks, deploy, and DNS. **prompt2brand** bundles that into one screen — describe the business once, preview a multi-page site, pick **name.com-verified** available domains, review **SerpApi** conflict signals, and **Launch brand** to Postgres + Vercel + registration.
+
+The long-term vision is subscribe once, return anytime, prompt changes, redeploy unlimited times. The PoC demo focuses on **first launch** only (see PoC scope vs product vision above).
+
+---
+
+## Engineering notes (challenges & lessons)
+
+1. **Multi-page preview** — LLM fragments often use hash nav (`#about`). Preview and published sites need different rewrite rules (`shared/internalLinks.ts`); see Page format and internal links.
+
+2. **Domain brainstorm quality** — Structured Meta JSON (stems + preferred TLDs), script fallback (`domainPromptParse.ts`), and **More suggestions** with excluded FQDNs. The LLM never replaces name.com availability.
+
+3. **name.com sandbox registration terms** — Sandbox enforces real TLD rules. Some TLDs require a longer minimum term (e.g. `.ai`); wrong `years` returned `Invalid years` until `registrationYearsForFqdn()` in `namecom.ts` matched term length per TLD.
+
+4. **SerpApi conflict UX** — A hit can look like a false alarm when the stem matches only in the result URL (e.g. `facebook.com/JoeTheElectrician`) but not in the snippet. The UI shows the full result URL plus snippet with matched tokens highlighted (`shared/conflictMatch.ts`).
+
+5. **Async launch** — Vercel deploy, name.com register, and DNS can succeed or fail independently. Status polling and per-row step lines (`launchSteps.ts`, `useLaunchStatus`) beat a single spinner.
+
+6. **Vercel Deploy API** — Each launch creates a new team project (`p2b-{siteId}`). `VERCEL_TOKEN` must be **team-scoped (all projects)**, not project-scoped to prompt2brand only, or the API returns permission errors and the app falls back to the Postgres serve URL.
+
+**Lessons:** Sponsor APIs compose well (name.com = availability/register/DNS, SerpApi = discovery, Vercel = hosting); PoC scope discipline (no auth/billing/post-subscribe edit) shipped a complete first-launch story; row-level launch status matters when three externals are involved.
+
+---
+
+## Roadmap (post-PoC, not built)
+
+- **Accounts and billing** — Sign-in, subscription, saved sites, return visits and redeploy.
+- **Analytics and SEO** — Traffic basics, meta tags, sitemaps for launched sites.
+- **Richer brand assets** — User uploads beyond AI-generated logo/favicon; defaults from brand kit.
+- **Simple forms** — Contact, lead capture, newsletter blocks from prompts (lightweight backend or email).
+- **RSVP / event modules** — Opening pages with headcount and confirmation messaging.
+
+---
+
 ## Known limitations (PoC)
 
 - No auth, billing, or return-visit editing
 - `safePublish` client fallback on API failure returns mock pending site (edge case)
 - SerpApi 1-hour cache may show stale conflicts during rapid retesting
 - Vercel Deployment Protection on new `p2b-*` projects is cleared via `ssoProtection: null` after Deploy API launch
-- Meta Model API rate limits → generate may fall back to preserving current draft
+- Meta Model API rate limits, intermittent **`model_not_found`**, or Muse Image entitlement gaps → site gen may **`source: "mock"`**; logo tab may keep the previous logo (see Meta Model API section)
 
 ---
 
