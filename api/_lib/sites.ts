@@ -1,4 +1,5 @@
-import type { BrandKit, PageDraft } from "./types";
+import type { BrandAssets, BrandKit, PageDraft } from "../../shared/types";
+import { FAVICON_FILENAME } from "../../shared/brandAssetPaths";
 import { getSql } from "./db";
 import { preparePublishedHtml } from "../../shared/internalLinks";
 import { wrapPage } from "./wrapPage";
@@ -26,6 +27,7 @@ export async function savePublishedSite(input: {
   hostedUrl: string;
   domainFqdn: string;
   brandKit: BrandKit;
+  brandAssets?: BrandAssets;
   pages: PageDraft[];
   domainStatus?: "pending" | "live" | "failed";
   hostingStatus?: "pending" | "live" | "failed";
@@ -50,7 +52,12 @@ export async function savePublishedSite(input: {
   for (const page of input.pages) {
     const pageMeta = input.pages.map((entry) => ({ slug: entry.slug, title: entry.title }));
     const bodyHtml = preparePublishedHtml(page.bodyHtml, pageMeta);
-    const html = wrapPage(page.title, bodyHtml, input.brandKit);
+    const html = wrapPage(
+      page.title,
+      bodyHtml,
+      input.brandKit,
+      input.brandAssets ? `/${FAVICON_FILENAME}` : undefined,
+    );
     await sql`
       INSERT INTO site_pages (site_id, slug, title, html)
       VALUES (${input.siteId}, ${page.slug}, ${page.title}, ${html})

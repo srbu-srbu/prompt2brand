@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
 import { BrandPreview } from "@/components/BrandPreview";
 import { DomainCard, type LaunchUiPhase } from "@/components/DomainCard";
+import { LogoCard } from "@/components/LogoCard";
 import { PromptBar } from "@/components/PromptBar";
 import { PromptPanel, type PromptMode } from "@/components/PromptPanel";
 import { SummaryLines } from "@/components/SummaryLines";
 import {
   safeDomainSuggest,
   safeGenerate,
+  safeLogoGenerate,
   safePublish,
 } from "@/lib/api";
 import {
@@ -70,6 +72,7 @@ export default function App() {
   const [launchUiPhase, setLaunchUiPhase] = useState<LaunchUiPhase>("idle");
   const [launchPreview, setLaunchPreview] = useState<{ domainFqdn: string } | null>(null);
   const [domainCardOpen, setDomainCardOpen] = useState(false);
+  const [logoCardOpen, setLogoCardOpen] = useState(false);
   const [published, setPublished] = useState<(PublishedSite & { siteId: string }) | null>(null);
 
   const LAUNCH_SPINNER_MS = 650;
@@ -106,17 +109,33 @@ export default function App() {
       } else {
         setPromptMode("domain");
         setDomainCardOpen(true);
+        setLogoCardOpen(false);
+      }
+      return;
+    }
+
+    if (mode === "logo") {
+      if (promptMode === "logo") {
+        if (!launching) {
+          setLogoCardOpen((open) => !open);
+        }
+      } else {
+        setPromptMode("logo");
+        setLogoCardOpen(true);
+        setDomainCardOpen(false);
       }
       return;
     }
 
     setPromptMode("site");
     setDomainCardOpen(false);
+    setLogoCardOpen(false);
   }
 
   async function handlePromptSubmit() {
     const prompt = promptInput.trim();
     if (!prompt || loading) return;
+    if (promptMode === "logo" && !hasSite(draft)) return;
 
     setLoading(true);
     setPromptInput("");
@@ -128,7 +147,37 @@ export default function App() {
         pageTitles: draft.pages.map((page) => page.title),
       };
 
-      if (promptMode === "domain") {
+      if (promptMode === "logo") {
+        try {
+          const result = await safeLogoGenerate({
+            prompt,
+            brandKit: draft.brandKit,
+            brandAssets: draft.brandAssets,
+          });
+          setDraft((current) =>
+            mergeDraft(current, {
+              prompt,
+              promptHistory: appendPromptHistory(current.promptHistory, prompt),
+              brandAssets: result.brandAssets ?? current.brandAssets,
+              summary: result.summary,
+              status: "ready",
+            }),
+          );
+        } catch {
+          setDraft((current) =>
+            mergeDraft(current, {
+              prompt,
+              promptHistory: appendPromptHistory(current.promptHistory, prompt),
+              summary: [
+                "Logo update failed — try again in a moment.",
+                `Latest cue: ${prompt.slice(0, 60)}`,
+                "Check MODEL_API_KEY and Muse Image access.",
+              ],
+              status: "ready",
+            }),
+          );
+        }
+      } else if (promptMode === "domain") {
         setLatestDomainCue(prompt);
         try {
           const result = await safeDomainSuggest(prompt, domainContext);
@@ -171,6 +220,7 @@ export default function App() {
             prompt,
             promptHistory: appendPromptHistory(current.promptHistory, prompt),
             brandKit: result.brandKit,
+            brandAssets: result.brandAssets ?? current.brandAssets,
             pages: result.pages,
             summary: result.summary,
             status: "ready",
@@ -209,7 +259,7 @@ export default function App() {
     );
 
     const publishPromise = safePublish({
-      draft: { pages: draft.pages, brandKit: draft.brandKit },
+      draft: { pages: draft.pages, brandKit: draft.brandKit, brandAssets: draft.brandAssets },
       domainFqdn: selectedDomain,
     });
 
@@ -237,6 +287,7 @@ export default function App() {
 
   const launched = phase === "done" && published;
   const domainCardVisible = domainCardOpen && (promptMode === "domain" || launching || launched);
+  const logoCardVisible = logoCardOpen && promptMode === "logo" && !launched && !launching;
 
   const cardProps = domainCardProps(
     domains,
@@ -284,9 +335,22 @@ export default function App() {
             <div className="relative min-h-0 flex-1">
               <BrandPreview
                 brandKit={draft.brandKit}
+                brandAssets={draft.brandAssets}
                 pages={draft.pages}
                 generating={loading && promptMode === "site"}
               />
+              <div
+                className={`domain-card-fade absolute bottom-0 left-0 z-30 w-full max-w-md ${
+                  logoCardVisible ? "domain-card-fade-open" : "domain-card-fade-closed"
+                }`}
+              >
+                <LogoCard
+                  brandKit={draft.brandKit}
+                  brandAssets={draft.brandAssets}
+                  hasWebsite={hasSite(draft)}
+                  updating={loading && promptMode === "logo"}
+                />
+              </div>
               <div
                 className={`domain-card-fade absolute bottom-0 left-0 z-30 w-full max-w-2xl ${
                   domainCardVisible ? "domain-card-fade-open" : "domain-card-fade-closed"
@@ -305,7 +369,9 @@ export default function App() {
             mode={promptMode}
             onModeChange={handlePromptModeChange}
             domainCardOpen={domainCardOpen}
+            logoCardOpen={logoCardOpen}
             siteTabDisabled={Boolean(launched) || launching}
+            logoTabDisabled={Boolean(launched) || launching}
             promptDisabled={Boolean(launched) || launching}
             summary={<SummaryLines lines={draft.summary} />}
           >

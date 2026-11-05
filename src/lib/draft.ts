@@ -18,7 +18,7 @@ export const EMPTY_DRAFT: Draft = {
   summary: [
     "Describe your brand to get started.",
     "We will build a preview and suggest domains.",
-    "Use the tabs above to edit your site or pick a domain.",
+    "Use the tabs to edit your site, logo, or domain.",
   ],
   status: "idle",
 };
@@ -67,6 +67,7 @@ export function mergeDraft(
     ...current,
     ...patch,
     brandKit: patch.brandKit ?? current.brandKit,
+    brandAssets: patch.brandAssets !== undefined ? patch.brandAssets : current.brandAssets,
     pages: patch.pages ?? current.pages,
     summary: patch.summary ?? current.summary,
     promptHistory: patch.promptHistory ?? current.promptHistory,

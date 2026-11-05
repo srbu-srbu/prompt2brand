@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { generateSite, mockFallback } from "./_lib/generateSite";
-import type { BrandKit, PageDraft } from "./_lib/types";
+import type { BrandAssets, BrandKit, PageDraft } from "../shared/types";
 
 export const maxDuration = 60;
 
@@ -8,6 +8,7 @@ type GenerateRequestBody = {
   prompt?: string;
   draft?: {
     brandKit?: BrandKit;
+    brandAssets?: BrandAssets;
     pages?: PageDraft[];
     promptHistory?: string[];
   };
@@ -35,6 +36,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.status(200).json({
       intent: "site",
       brandKit: generated.brandKit,
+      brandAssets: generated.brandAssets,
       pages: generated.pages,
       summary: generated.summary,
       source: generated.source,
@@ -47,6 +49,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.status(200).json({
       intent: "site",
       brandKit: generated.brandKit,
+      brandAssets: generated.brandAssets,
       pages: generated.pages,
       summary: generated.summary,
       source: generated.source,

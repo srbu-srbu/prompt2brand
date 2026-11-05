@@ -6,10 +6,11 @@ import {
   writeStoredPreviewSlug,
   type PreviewPageMeta,
 } from "@/lib/previewFrame";
-import type { BrandKit, PageDraft } from "@/lib/types";
+import type { BrandAssets, BrandKit, PageDraft } from "@/lib/types";
 
 type BrandPreviewProps = {
   brandKit: BrandKit;
+  brandAssets?: BrandAssets;
   pages: PageDraft[];
   activeSlug?: string;
   /** True while waiting on site-generation LLM (Create / Edit website). */
@@ -48,6 +49,7 @@ function PreviewGeneratingOverlay() {
 }
 
 export function BrandPreview({
+  brandAssets,
   pages,
   activeSlug: initialSlug = "home",
   generating = false,
@@ -110,11 +112,11 @@ export function BrandPreview({
   return (
     <div className="border-glow-surface-soft relative z-0 flex h-full flex-col overflow-hidden rounded-2xl border bg-white shadow-sm shadow-sky-100/40">
       <iframe
-        key={activeSlug}
+        key={`${activeSlug}-${brandAssets?.revision ?? 0}`}
         title="Brand preview"
         className="min-h-0 w-full flex-1 border-0 bg-white"
         sandbox="allow-scripts"
-        srcDoc={buildPreviewSrcDoc(page.bodyHtml, pageMeta)}
+        srcDoc={buildPreviewSrcDoc(page.bodyHtml, pageMeta, brandAssets)}
       />
       {generating ? <PreviewGeneratingOverlay /> : null}
     </div>

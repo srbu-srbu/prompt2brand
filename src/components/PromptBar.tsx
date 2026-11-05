@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 
 const PLACEHOLDERS: Record<PromptMode, string> = {
   site: "Describe your brand, add pages, or tweak the preview…",
+  logo: "Describe your logo — mascot, monogram, icon style, colors…",
   domain: "Brainstorm domain names — shorter, playful, or alternate spellings…",
 };
 

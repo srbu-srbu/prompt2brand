@@ -1,4 +1,17 @@
-import type { BrandConflict, BrandKit, DomainSuggestion, PageDraft, PublishedSite, SummaryLines } from "./types";
+import {
+  brandKitFromPrompt,
+  buildClientMockHomePage,
+  createClientPlaceholderBrandAssets,
+} from "./clientBrandAssets";
+import type {
+  BrandAssets,
+  BrandConflict,
+  BrandKit,
+  DomainSuggestion,
+  PageDraft,
+  PublishedSite,
+  SummaryLines,
+} from "./types";
 
 export async function apiDomainConflicts(fqdn: string, brandName?: string) {
   const params = new URLSearchParams({ fqdn });
@@ -10,7 +23,7 @@ export async function apiDomainConflicts(fqdn: string, brandName?: string) {
 
 export async function apiGenerate(
   prompt: string,
-  draft: { pages: PageDraft[]; brandKit?: BrandKit; promptHistory?: string[] },
+  draft: { pages: PageDraft[]; brandKit?: BrandKit; brandAssets?: BrandAssets; promptHistory?: string[] },
 ) {
   const res = await fetch("/api/generate", {
     method: "POST",
@@ -23,7 +36,30 @@ export async function apiGenerate(
   }
   return res.json() as Promise<{
     brandKit: BrandKit;
+    brandAssets?: BrandAssets;
     pages: PageDraft[];
+    summary: SummaryLines;
+    source?: "llm" | "mock";
+    error?: string;
+  }>;
+}
+
+export async function apiLogoGenerate(input: {
+  prompt: string;
+  brandKit: BrandKit;
+  brandAssets?: BrandAssets;
+}) {
+  const res = await fetch("/api/logo/generate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error ?? "Logo generate failed");
+  }
+  return res.json() as Promise<{
+    brandAssets?: BrandAssets;
     summary: SummaryLines;
     source?: "llm" | "mock";
     error?: string;
@@ -75,7 +111,7 @@ export async function apiDomainSuggestMore(input: {
 }
 
 export async function apiPublish(payload: {
-  draft: { pages: PageDraft[]; brandKit: BrandKit };
+  draft: { pages: PageDraft[]; brandKit: BrandKit; brandAssets?: BrandAssets };
   domainFqdn: string;
 }) {
   const res = await fetch("/api/sites/publish", {
@@ -107,13 +143,16 @@ function delay(ms: number) {
 
 export async function mockGenerate(
   prompt: string,
-  draft: { pages: PageDraft[]; brandKit?: BrandKit },
+  draft: { pages: PageDraft[]; brandKit?: BrandKit; brandAssets?: BrandAssets },
 ) {
   await delay(600);
 
   if (draft.pages.length > 0 && draft.brandKit) {
+    const brandAssets =
+      draft.brandAssets ?? createClientPlaceholderBrandAssets(draft.brandKit, 1);
     return {
       brandKit: draft.brandKit,
+      brandAssets,
       pages: draft.pages,
       summary: [
         "AI unavailable — kept your current preview.",
@@ -124,19 +163,24 @@ export async function mockGenerate(
     };
   }
 
-  return {
-    brandKit: draft.brandKit ?? {
-      name: "",
-      tagline: "",
-      primaryColor: "#2563eb",
-      accentColor: "#f59e0b",
-      fontFamily: "system-ui, sans-serif",
+  const brandKit = brandKitFromPrompt(prompt, draft.brandKit);
+  const brandAssets = draft.brandAssets ?? createClientPlaceholderBrandAssets(brandKit);
+  const pages: PageDraft[] = [
+    {
+      slug: "home",
+      title: "Home",
+      bodyHtml: buildClientMockHomePage(brandKit),
     },
-    pages: [],
+  ];
+
+  return {
+    brandKit,
+    brandAssets,
+    pages,
     summary: [
-      "AI unavailable — no preview generated.",
+      "Offline preview — run vercel dev for full AI site generation.",
       `Latest cue: ${prompt.slice(0, 60)}`,
-      "Try again in a moment if the Meta Model API was rate-limited.",
+      "Logo tab is available; Muse image generation still needs the API.",
     ] satisfies SummaryLines,
     source: "mock" as const,
   };
@@ -166,9 +210,37 @@ export async function mockPublish(domainFqdn: string) {
   };
 }
 
+export async function safeLogoGenerate(input: {
+  prompt: string;
+  brandKit: BrandKit;
+  brandAssets?: BrandAssets;
+}) {
+  try {
+    const result = await apiLogoGenerate(input);
+    if (result.source === "mock" && result.error) {
+      return {
+        ...result,
+        summary: [result.summary[0], result.summary[1], result.error.slice(0, 120)] satisfies SummaryLines,
+      };
+    }
+    return result;
+  } catch (error) {
+    console.warn("Logo API failed", error);
+    return {
+      brandAssets: input.brandAssets,
+      source: "mock" as const,
+      summary: [
+        "Logo update failed — try again in a moment.",
+        `Latest cue: ${input.prompt.slice(0, 60)}`,
+        "Start vercel dev for API routes — npm run dev alone has no backend.",
+      ] satisfies SummaryLines,
+    };
+  }
+}
+
 export async function safeGenerate(
   prompt: string,
-  draft: { pages: PageDraft[]; brandKit?: BrandKit; promptHistory?: string[] },
+  draft: { pages: PageDraft[]; brandKit?: BrandKit; brandAssets?: BrandAssets; promptHistory?: string[] },
 ) {
   try {
     const result = await apiGenerate(prompt, draft);
@@ -212,7 +284,7 @@ export async function safeDomainSuggest(
 }
 
 export async function safePublish(payload: {
-  draft: { pages: PageDraft[]; brandKit: BrandKit };
+  draft: { pages: PageDraft[]; brandKit: BrandKit; brandAssets?: BrandAssets };
   domainFqdn: string;
 }) {
   try {

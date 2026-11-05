@@ -3,11 +3,13 @@
  * wrap fragments for the in-app sandboxed iframe.
  */
 
+import { injectBrandAssetUrls } from "../../shared/injectBrandAssets";
 import {
   P2B_PREFIX,
   preparePreviewHtml as rewritePreviewLinks,
   resolvePageSlug,
 } from "../../shared/internalLinks";
+import type { BrandAssets } from "../../shared/types";
 
 export const PREVIEW_SLUG_STORAGE_KEY = "prompt2brand:previewSlug";
 
@@ -49,16 +51,28 @@ export function writeStoredPreviewSlug(slug: string) {
   }
 }
 
-export function buildPreviewSrcDoc(bodyHtml: string, pages: PreviewPageMeta[]): string {
-  const previewBody = escapeSrcDocHtml(preparePreviewHtml(bodyHtml, pages));
+export function buildPreviewSrcDoc(
+  bodyHtml: string,
+  pages: PreviewPageMeta[],
+  brandAssets?: BrandAssets,
+): string {
+  let prepared = preparePreviewHtml(bodyHtml, pages);
+  if (brandAssets) {
+    prepared = injectBrandAssetUrls(prepared, brandAssets);
+  }
+  const previewBody = escapeSrcDocHtml(prepared);
   const pagesJson = JSON.stringify(pages);
   const prefixJson = JSON.stringify(P2B_PREFIX);
+  const faviconTag = brandAssets
+    ? `<link rel="icon" type="image/png" href="data:image/png;base64,${brandAssets.faviconPngBase64}" />`
+    : "";
 
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  ${faviconTag}
   <style>
     html, body { margin: 0; min-height: 100%; }
   </style>

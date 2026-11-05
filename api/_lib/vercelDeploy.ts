@@ -1,4 +1,5 @@
-import type { BrandKit, PageDraft } from "./types";
+import type { BrandAssets, BrandKit, PageDraft } from "../../shared/types";
+import { FAVICON_FILENAME, LOGO_FILENAME } from "../../shared/brandAssetPaths";
 import { preparePublishedHtml } from "../../shared/internalLinks";
 import { wrapPage } from "./wrapPage";
 
@@ -12,6 +13,8 @@ type VercelConfig = {
 type DeployFile = {
   file: string;
   data: string;
+  /** When set, `data` is already base64 PNG bytes (not UTF-8 text). */
+  encoding?: "base64";
 };
 
 type DeploymentResponse = {
@@ -90,15 +93,33 @@ async function vercelFetch<T>(
 }
 
 /** Build static file tree for a one-project-per-launch Vercel deployment. */
-export function buildStaticDeployFiles(pages: PageDraft[], brandKit: BrandKit): DeployFile[] {
+export function buildStaticDeployFiles(
+  pages: PageDraft[],
+  brandKit: BrandKit,
+  brandAssets?: BrandAssets,
+): DeployFile[] {
   const files: DeployFile[] = [];
   const pageMeta = pages.map((page) => ({ slug: page.slug, title: page.title }));
+  const faviconHref = brandAssets ? `/${FAVICON_FILENAME}` : undefined;
 
   for (const page of pages) {
     const bodyHtml = preparePublishedHtml(page.bodyHtml, pageMeta);
-    const html = wrapPage(page.title, bodyHtml, brandKit);
+    const html = wrapPage(page.title, bodyHtml, brandKit, faviconHref);
     const file = page.slug === "home" ? "index.html" : `${page.slug}.html`;
     files.push({ file, data: html });
+  }
+
+  if (brandAssets) {
+    files.push({
+      file: LOGO_FILENAME,
+      data: brandAssets.logoPngBase64,
+      encoding: "base64",
+    });
+    files.push({
+      file: FAVICON_FILENAME,
+      data: brandAssets.faviconPngBase64,
+      encoding: "base64",
+    });
   }
 
   files.push({
@@ -245,15 +266,16 @@ export async function createSiteDeployment(input: {
   siteId: string;
   pages: PageDraft[];
   brandKit: BrandKit;
+  brandAssets?: BrandAssets;
 }): Promise<SiteDeploymentResult> {
   const config = getVercelConfig();
   if (!config) {
     throw new Error("VERCEL_TOKEN is required");
   }
 
-  const files = buildStaticDeployFiles(input.pages, input.brandKit).map((entry) => ({
+  const files = buildStaticDeployFiles(input.pages, input.brandKit, input.brandAssets).map((entry) => ({
     file: entry.file,
-    data: Buffer.from(entry.data, "utf8").toString("base64"),
+    data: entry.encoding === "base64" ? entry.data : Buffer.from(entry.data, "utf8").toString("base64"),
     encoding: "base64" as const,
   }));
 

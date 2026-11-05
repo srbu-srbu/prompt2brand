@@ -1,5 +1,7 @@
 import { z } from "zod";
-import type { BrandKit, PageDraft } from "./types";
+import { LOGO_SRC } from "../../shared/brandAssetPaths";
+import type { BrandAssets, BrandKit, PageDraft } from "../../shared/types";
+import { createPlaceholderBrandAssets } from "./brandAssets";
 import {
   chatCompletion,
   getMetaReasoningEffort,
@@ -101,6 +103,7 @@ export type GenerateSiteInput = {
   prompt: string;
   draft?: {
     brandKit?: BrandKit;
+    brandAssets?: BrandAssets;
     pages?: PageDraft[];
     promptHistory?: string[];
   };
@@ -108,6 +111,7 @@ export type GenerateSiteInput = {
 
 export type GenerateSiteResult = {
   brandKit: BrandKit;
+  brandAssets?: BrandAssets;
   pages: PageDraft[];
   summary: [string, string, string];
   source: "llm" | "mock";
@@ -151,7 +155,21 @@ Rules:
 - Match the user's business and latest prompt. Never revert to unrelated sample brands unless the user asked for that business.
 - summary: exactly three short factual lines (line1, line2, line3). Line3 may reference the latest cue briefly.
 - Slugs: lowercase letters, numbers, hyphens only.
-- Multi-page nav: when separate pages exist, link between them with paths like /about or /contact — not #about hash links on a single page.`;
+- Multi-page nav: when separate pages exist, link between them with paths like /about or /contact — not #about hash links on a single page.
+- Brand logo files are hosted at ${LOGO_SRC} (200×200) and /favicon.png (32×32). In header/nav, include <img src="${LOGO_SRC}" alt="Brand logo" width="200" height="200" style="height:40px;width:auto"> (or similar) on each page when a logo area makes sense. Do not hotlink external logo URLs.`;
+}
+
+async function resolveBrandAssetsAfterSiteGen(
+  input: GenerateSiteInput,
+  brandKit: BrandKit,
+  previousName?: string,
+): Promise<BrandAssets> {
+  const hadPages = Boolean(input.draft?.pages?.length);
+  const rebrand = Boolean(previousName && previousName !== brandKit.name);
+  if (input.draft?.brandAssets && hadPages && !rebrand) {
+    return input.draft.brandAssets;
+  }
+  return createPlaceholderBrandAssets(brandKit);
 }
 
 function buildUserPrompt(input: GenerateSiteInput): string {
@@ -180,6 +198,7 @@ export function mockFallback(input: GenerateSiteInput, error?: string): Generate
   if (hasExistingSite && input.draft?.brandKit && input.draft.pages?.length) {
     return {
       brandKit: input.draft.brandKit,
+      brandAssets: input.draft.brandAssets,
       pages: input.draft.pages,
       summary: [
         "AI unavailable — kept your current preview.",
@@ -260,10 +279,17 @@ export async function generateSite(input: GenerateSiteInput): Promise<GenerateSi
 
   try {
     const object = await callMetaModel(input);
+    const brandKit = object.brandKit;
+    const brandAssets = await resolveBrandAssetsAfterSiteGen(
+      input,
+      brandKit,
+      input.draft?.brandKit?.name,
+    );
 
     return {
-      brandKit: object.brandKit,
-      pages: ensureHomePage(object.pages, object.brandKit),
+      brandKit,
+      brandAssets,
+      pages: ensureHomePage(object.pages, brandKit),
       summary: [object.summary.line1, object.summary.line2, object.summary.line3],
       source: "llm",
     };

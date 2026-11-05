@@ -6,6 +6,13 @@ export interface BrandKit {
   fontFamily: string;
 }
 
+/** PNG bytes as base64 — logo.png (200×200) and favicon.png (32×32), same artwork. */
+export interface BrandAssets {
+  logoPngBase64: string;
+  faviconPngBase64: string;
+  revision: number;
+}
+
 export interface PageDraft {
   slug: string;
   title: string;
@@ -18,6 +25,7 @@ export interface Draft {
   prompt: string;
   promptHistory: string[];
   brandKit: BrandKit;
+  brandAssets?: BrandAssets;
   pages: PageDraft[];
   summary: SummaryLines;
   status: "idle" | "generating" | "ready" | "publishing";

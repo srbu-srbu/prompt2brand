@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import type { BrandKit, PageDraft } from "../_lib/types";
+import type { BrandAssets, BrandKit, PageDraft } from "../../shared/types";
 import { hasNamecomConfig, registerDomainWithDns, registerDomainWithRecords } from "../_lib/namecom";
 import { getLiveIntegrationsMode, useVercelHosting } from "../_lib/integrations";
 import {
@@ -19,6 +19,7 @@ type PublishBody = {
   draft?: {
     pages?: PageDraft[];
     brandKit?: BrandKit;
+    brandAssets?: BrandAssets;
   };
   domainFqdn?: string;
 };
@@ -38,6 +39,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const body = (req.body ?? {}) as PublishBody;
   const pages = body.draft?.pages ?? [];
   const brandKit = body.draft?.brandKit;
+  const brandAssets = body.draft?.brandAssets;
   const domainFqdn = typeof body.domainFqdn === "string" ? body.domainFqdn.trim().toLowerCase() : "";
 
   if (!brandKit || pages.length === 0) {
@@ -64,6 +66,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       hostedUrl: fallbackUrl,
       domainFqdn,
       brandKit,
+      brandAssets,
       pages,
       domainStatus,
       hostingStatus: "pending",
@@ -74,7 +77,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (deployToVercel) {
       try {
-        const deployment = await createSiteDeployment({ siteId, pages, brandKit });
+        const deployment = await createSiteDeployment({ siteId, pages, brandKit, brandAssets });
         vercelDeploymentId = deployment.deploymentId;
         hostedUrl = deployment.hostedUrl;
         hostingStatus = "pending";
