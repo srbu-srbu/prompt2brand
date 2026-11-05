@@ -282,7 +282,11 @@ export default function App() {
         <main className="relative flex min-h-0 flex-1 flex-col">
           <div className="app-shell flex h-full min-h-0 flex-col pt-3 pb-0">
             <div className="relative min-h-0 flex-1">
-              <BrandPreview brandKit={draft.brandKit} pages={draft.pages} />
+              <BrandPreview
+                brandKit={draft.brandKit}
+                pages={draft.pages}
+                generating={loading && promptMode === "site"}
+              />
               <div
                 className={`domain-card-fade absolute bottom-0 left-0 z-30 w-full max-w-2xl ${
                   domainCardVisible ? "domain-card-fade-open" : "domain-card-fade-closed"

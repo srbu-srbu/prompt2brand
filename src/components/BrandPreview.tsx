@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Loader2 } from "lucide-react";
 import {
   buildPreviewSrcDoc,
   readStoredPreviewSlug,
@@ -11,9 +12,46 @@ type BrandPreviewProps = {
   brandKit: BrandKit;
   pages: PageDraft[];
   activeSlug?: string;
+  /** True while waiting on site-generation LLM (Create / Edit website). */
+  generating?: boolean;
 };
 
-export function BrandPreview({ pages, activeSlug: initialSlug = "home" }: BrandPreviewProps) {
+function PreviewGeneratingContent() {
+  return (
+    <div className="flex flex-col items-center gap-5">
+      <div className="preview-gen-blocks" aria-hidden>
+        <span className="preview-gen-block" />
+        <span className="preview-gen-block" />
+        <span className="preview-gen-block" />
+        <span className="preview-gen-block" />
+        <span className="preview-gen-block" />
+      </div>
+      <Loader2 className="h-9 w-9 animate-spin text-zinc-500" aria-hidden />
+      <p className="text-center text-base font-medium text-zinc-600 sm:text-lg">
+        Building your website…
+      </p>
+    </div>
+  );
+}
+
+function PreviewGeneratingOverlay() {
+  return (
+    <div
+      className="preview-gen-overlay absolute inset-0 z-10 flex flex-col items-center justify-center gap-5 rounded-2xl bg-white/80 px-6 backdrop-blur-[2px]"
+      role="status"
+      aria-live="polite"
+      aria-label="Generating your website"
+    >
+      <PreviewGeneratingContent />
+    </div>
+  );
+}
+
+export function BrandPreview({
+  pages,
+  activeSlug: initialSlug = "home",
+  generating = false,
+}: BrandPreviewProps) {
   const pageMeta = useMemo<PreviewPageMeta[]>(
     () => pages.map((page) => ({ slug: page.slug, title: page.title })),
     [pages],
@@ -49,14 +87,28 @@ export function BrandPreview({ pages, activeSlug: initialSlug = "home" }: BrandP
 
   if (!page) {
     return (
-      <div className="relative z-0 flex h-full items-center justify-center rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 text-zinc-500">
-        Your brand preview will appear here
+      <div
+        className="border-glow-surface-dashed relative z-0 flex h-full w-full min-w-0 rounded-2xl border border-dashed bg-zinc-50/90"
+        {...(generating
+          ? { role: "status" as const, "aria-live": "polite" as const, "aria-label": "Generating your website" }
+          : {})}
+      >
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-6 py-12">
+          {generating ? <PreviewGeneratingContent /> : null}
+          <p
+            className={`w-full max-w-none text-center text-xl font-medium leading-snug sm:text-2xl md:text-3xl ${
+              generating ? "mt-8 text-zinc-300 sm:mt-10" : "text-zinc-400"
+            }`}
+          >
+            Your brand preview will appear here
+          </p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="relative z-0 flex h-full flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
+    <div className="border-glow-surface-soft relative z-0 flex h-full flex-col overflow-hidden rounded-2xl border bg-white shadow-sm shadow-sky-100/40">
       <iframe
         key={activeSlug}
         title="Brand preview"
@@ -64,6 +116,7 @@ export function BrandPreview({ pages, activeSlug: initialSlug = "home" }: BrandP
         sandbox="allow-scripts"
         srcDoc={buildPreviewSrcDoc(page.bodyHtml, pageMeta)}
       />
+      {generating ? <PreviewGeneratingOverlay /> : null}
     </div>
   );
 }

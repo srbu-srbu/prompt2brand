@@ -40,12 +40,12 @@ export function PromptBar({
           "relative w-full transition-shadow",
           embedded
             ? cn(
-                "rounded-xl border border-zinc-200 bg-zinc-50/80",
-                "focus-within:border-zinc-300 focus-within:bg-white focus-within:ring-2 focus-within:ring-zinc-900/5",
+                "border-glow-surface-soft rounded-xl border bg-zinc-50/80",
+                "border-glow-focus focus-within:bg-white focus-within:ring-2 focus-within:ring-sky-500/10",
               )
             : cn(
-                "rounded-2xl border bg-white shadow-sm",
-                "focus-within:border-zinc-300 focus-within:shadow-md focus-within:ring-2 focus-within:ring-zinc-900/5",
+                "border-glow-surface-soft rounded-2xl border bg-white shadow-sm shadow-sky-100/30",
+                "border-glow-focus focus-within:shadow-md focus-within:shadow-sky-100/50 focus-within:ring-2 focus-within:ring-sky-500/10",
               ),
           disabled && "opacity-60",
         )}

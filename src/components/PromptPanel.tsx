@@ -50,7 +50,7 @@ export function PromptPanelTabs({
                     "z-10 bg-white text-zinc-900 after:absolute after:inset-x-0 after:-bottom-px after:h-px after:bg-white",
                     isDomainTab ? "rounded-tl-lg rounded-tr-2xl" : "rounded-tl-2xl rounded-tr-lg",
                   )
-                : "rounded-t-lg bg-transparent text-zinc-500 hover:bg-zinc-300/45 hover:text-zinc-700",
+                : "prompt-tab-inactive rounded-t-lg bg-transparent text-zinc-500 hover:text-zinc-700",
               isDisabled && "cursor-not-allowed opacity-45",
             )}
           >
@@ -93,7 +93,7 @@ export function PromptPanel({
   children,
 }: PromptPanelProps) {
   return (
-    <div className="rounded-2xl border border-zinc-300/70 bg-zinc-200/55 shadow-sm">
+    <div className="prompt-tabs-chrome border-glow-surface rounded-2xl border shadow-sm shadow-sky-100/30">
       <PromptPanelTabs
         mode={mode}
         onModeChange={onModeChange}
