@@ -93,4 +93,4 @@ shared/        Types and logic shared between app and API
 
 ## License
 
-Copyright © 2026 Miliojen LLC. All rights reserved.
+[MIT License](./LICENSE) — open source; see [LICENSE](./LICENSE) for terms.
