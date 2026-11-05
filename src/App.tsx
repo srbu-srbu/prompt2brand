@@ -19,6 +19,7 @@ import {
   saveDraft,
 } from "@/lib/draft";
 import type { AppPhase, DomainSuggestion, Draft, PublishedSite } from "@/lib/types";
+import { APP_LOGO_SRC } from "../shared/appBrandPaths";
 
 const domainCardProps = (
   domains: DomainSuggestion[],
@@ -317,9 +318,18 @@ export default function App() {
       <div className="relative flex min-h-0 flex-1 flex-col">
         <header className="app-header relative shrink-0 pt-3">
           <div className="app-shell flex items-center justify-between pb-3">
-            <div>
-              <p className="app-header-title">prompt2brand</p>
-              <p className="app-header-tagline">Prompt your brand. Pick a domain. Launch.</p>
+            <div className="flex items-center gap-3">
+              <img
+                src={APP_LOGO_SRC}
+                alt=""
+                width={40}
+                height={40}
+                className="app-header-mark shrink-0"
+              />
+              <div>
+                <p className="app-header-title">prompt2brand</p>
+                <p className="app-header-tagline">Prompt your brand. Pick a domain. Launch.</p>
+              </div>
             </div>
             {hasSite(draft) ? (
               <p className="app-header-brand">{draft.brandKit.name}</p>

@@ -148,6 +148,13 @@ body {
   letter-spacing: -0.01em;
 }
 
+.app-header-mark {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 0.65rem;
+  box-shadow: 0 2px 8px rgb(49 46 129 / 0.14);
+}
+
 .app-header-title {
   font-size: 1.0625rem;
   font-weight: 700;

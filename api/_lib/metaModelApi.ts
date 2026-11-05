@@ -23,6 +23,24 @@ export function getMetaChatModel(): string {
   return raw.replace(/^\uFEFF/, "").replace(/^["']|["']$/g, "");
 }
 
+/** When Meta returns misleading model_not_found on large site-gen payloads, try these chat model IDs next. */
+export function getMetaChatModelFallbacks(): string[] {
+  const primary = getMetaChatModel();
+  const fromEnv =
+    process.env.META_MODEL_FALLBACKS?.split(",")
+      .map((entry) => entry.trim())
+      .filter(Boolean) ?? [];
+  const defaults = ["muse-spark-1.3", "muse-spark-1.2"];
+  const seen = new Set<string>([primary]);
+  const ordered: string[] = [];
+  for (const model of [...fromEnv, ...defaults]) {
+    if (seen.has(model)) continue;
+    seen.add(model);
+    ordered.push(model);
+  }
+  return ordered;
+}
+
 export type ChatMessage = {
   role: "system" | "user" | "assistant" | "developer";
   content: string;
@@ -34,6 +52,8 @@ type ChatCompletionResponse = {
 };
 
 export type ChatCompletionOptions = {
+  /** Override META_MODEL for this request (used for fallbacks). */
+  model?: string;
   reasoningEffort?: "minimal" | "low" | "medium" | "high";
   maxCompletionTokens?: number;
   /** Prefer streaming for long generations — avoids Meta non-streaming gateway timeouts. */
@@ -122,7 +142,7 @@ function isModelNotFoundMessage(message: string): boolean {
 
 function buildChatBody(messages: ChatMessage[], options?: ChatCompletionOptions): Record<string, unknown> {
   const body: Record<string, unknown> = {
-    model: getMetaChatModel(),
+    model: options?.model?.trim() || getMetaChatModel(),
     messages,
     stream: Boolean(options?.stream),
   };
@@ -210,17 +230,21 @@ export async function chatCompletion(
   messages: ChatMessage[],
   options?: ChatCompletionOptions,
 ): Promise<string> {
-  const attempts = siteGenRetryOptions(options);
+  const primaryModel = options?.model?.trim() || getMetaChatModel();
+  const models = [primaryModel, ...getMetaChatModelFallbacks()];
   let lastError: Error | undefined;
 
-  for (const attempt of attempts) {
-    try {
-      return await chatCompletionOnce(messages, attempt);
-    } catch (error) {
-      const err = error instanceof Error ? error : new Error(String(error));
-      lastError = err;
-      if (!isModelNotFoundMessage(err.message)) {
-        throw err;
+  for (const model of models) {
+    const attempts = siteGenRetryOptions({ ...options, model });
+    for (const attempt of attempts) {
+      try {
+        return await chatCompletionOnce(messages, attempt);
+      } catch (error) {
+        const err = error instanceof Error ? error : new Error(String(error));
+        lastError = err;
+        if (!isModelNotFoundMessage(err.message)) {
+          throw err;
+        }
       }
     }
   }

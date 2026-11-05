@@ -26,4 +26,5 @@ Thumbs.db
 *.tsbuildinfo
 
 # Local one-off patch scripts (not part of the app)
-scripts/
+scripts/*
+!scripts/generate-app-brand.mjs

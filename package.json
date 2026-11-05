@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc -b --noEmit"
+    "typecheck": "tsc -b --noEmit",
+    "brand:app": "node scripts/generate-app-brand.mjs"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
